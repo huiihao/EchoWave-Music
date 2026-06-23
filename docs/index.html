@@ -66,8 +66,18 @@ button{cursor:pointer;border:none;background:none}
 .search-hero{margin-bottom:24px}
 .search-box{display:flex;align-items:center;gap:0;background:var(--bg-elevated);border-radius:var(--radius-lg);border:1px solid var(--border);padding:4px 4px 4px 18px;transition:border-color var(--transition)}
 .search-box:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.search-box{position:relative}
 .search-box input{flex:1;padding:12px 0;font-size:15px;color:var(--text-primary);font-weight:500}
 .search-box input::placeholder{color:var(--text-muted);font-weight:400}
+.search-history{position:absolute;top:100%;left:0;right:0;margin-top:6px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;z-index:50;display:none;box-shadow:var(--shadow-lg)}
+.search-history.open{display:block}
+.search-history-item{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;font-size:13px;color:var(--text-secondary);cursor:pointer;transition:all var(--transition)}
+.search-history-item:hover{background:var(--bg-hover);color:var(--text-primary)}
+.search-history-item .sh-delete{opacity:0;font-size:14px;transition:opacity var(--transition)}
+.search-history-item:hover .sh-delete{opacity:0.6}
+.search-history-item .sh-delete:hover{opacity:1;color:var(--rose)}
+.search-history-clear{text-align:center;padding:8px;font-size:11px;color:var(--text-muted);cursor:pointer;border-top:1px solid var(--border)}
+.search-history-clear:hover{color:var(--rose)}
 .search-box .search-btn{padding:10px 22px;border-radius:var(--radius-md);background:var(--accent);color:#fff;font-size:13px;font-weight:600;transition:all var(--transition)}
 .search-box .search-btn:hover{box-shadow:0 4px 16px var(--accent-glow)}
 .source-filters{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center}
@@ -276,10 +286,11 @@ button{cursor:pointer;border:none;background:none}
     <div id="content">
       <div id="search-view">
         <div class="search-hero">
-          <div class="search-box">
+          <div class="search-box" id="search-box-wrap">
             <span style="font-size:16px;margin-right:8px;color:var(--text-muted)">🔍</span>
             <input id="search-input" type="text" placeholder="Search songs, artists, albums..." autocomplete="off"/>
             <button class="search-btn" id="search-btn">Search</button>
+            <div class="search-history" id="search-history"></div>
           </div>
           <div class="source-filters" id="source-filters"></div>
           <div class="limit-row">
@@ -373,6 +384,8 @@ const SOURCE_ORDER=['netease','qq','kuwo','kugou','migu'];
 const SOURCE_LABELS={netease:'NetEase',qq:'QQ Music',kuwo:'Kuwo',kugou:'Kugou',migu:'Migu'};
 const SOURCE_DOTS={netease:'🔴',qq:'🔵',kuwo:'🟣',kugou:'💠',migu:'🟠'};
 const LS_KEY='echowave-library-v2';
+const HISTORY_KEY='echowave-search-history';
+const MAX_HISTORY=12;
 const $=id=>document.getElementById(id);
 let D={};
 function fmtTime(sec){if(!isFinite(sec)||sec<0)sec=0;const m=Math.floor(sec/60),s=Math.floor(sec%60);return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')}
@@ -450,6 +463,12 @@ async function doSearch(reset){
   $('search-count').textContent=S.searchResults.length+' tracks';renderResults();renderPlaylistPanel();
 }
 function loadMore(){$('search-status').textContent='Loading more...';SOURCE_ORDER.forEach(s=>{S.perSourcePage[s]=(S.perSourcePage[s]||1)+1});doSearch(false)}
+function getSearchHistory(){try{return JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]')}catch(e){return[]}}
+function saveSearchHistory(kw){if(!kw)return;var h=getSearchHistory();h=h.filter(function(x){return x!==kw});h.unshift(kw);if(h.length>MAX_HISTORY)h=h.slice(0,MAX_HISTORY);localStorage.setItem(HISTORY_KEY,JSON.stringify(h))}
+function renderSearchHistory(){var h=getSearchHistory();var el=$('search-history');if(!h.length){el.innerHTML='';el.classList.remove('open');return}
+  el.innerHTML=h.map(function(x){return'<div class=\"search-history-item\" data-kw=\"'+escHtml(x)+'\"><span>🔍 '+escHtml(x)+'</span><span class=\"sh-delete\" data-del=\"'+escHtml(x)+'\">×</span></div>'}).join('')+
+    '<div class=\"search-history-clear\" id=\"sh-clear\">Clear history</div>';
+  el.classList.add('open')}
 
 /* ── Render Results ── */
 function renderResults(){
@@ -593,10 +612,18 @@ function init(){
   $('np-volume').addEventListener('input',function(){D.audio.volume=this.value});D.audio.volume=0.8;
   $('np-progress-bar').addEventListener('click',function(e){var r=this.getBoundingClientRect();if(D.audio.duration)D.audio.currentTime=((e.clientX-r.left)/r.width)*D.audio.duration});
 
-  $('search-input').addEventListener('keydown',function(e){if(e.key==='Enter'){S.searchKeyword=this.value.trim();doSearch(true)}});
-  $('search-btn').addEventListener('click',function(){S.searchKeyword=$('search-input').value.trim();doSearch(true)});
+  function doSearchWithHistory(){S.searchKeyword=$('search-input').value.trim();saveSearchHistory(S.searchKeyword);doSearch(true)}
+  $('search-input').addEventListener('keydown',function(e){if(e.key==='Enter'){doSearchWithHistory()}});
+  $('search-btn').addEventListener('click',doSearchWithHistory);
+  // Search history dropdown
+  $('search-input').addEventListener('focus',function(){if(!this.value.trim())renderSearchHistory()});
+  $('search-input').addEventListener('input',function(){if(!this.value.trim())renderSearchHistory();else $('search-history').classList.remove('open')});
+  $('search-history').addEventListener('click',function(e){var item=e.target.closest('.search-history-item');if(item){var kw=item.dataset.kw;$('search-input').value=kw;doSearchWithHistory()}$('search-history').classList.remove('open')});
+  $('search-history').addEventListener('click',function(e){if(e.target.dataset.del){e.stopPropagation();var h=getSearchHistory().filter(function(x){return x!==e.target.dataset.del});localStorage.setItem(HISTORY_KEY,JSON.stringify(h));renderSearchHistory()}});
+  $('search-history').addEventListener('click',function(e){if(e.target.id==='sh-clear'){localStorage.removeItem(HISTORY_KEY);renderSearchHistory()}});
+  document.addEventListener('click',function(e){if(!$('search-box-wrap').contains(e.target))$('search-history').classList.remove('open')});
   $('load-more-btn').addEventListener('click',loadMore);
-  $('limit-select').addEventListener('change',function(){S.perSourceLimit=parseInt(this.value);if(S.searchKeyword)doSearch(true)});
+  $('limit-select').addEventListener('change',function(){S.perSourceLimit=parseInt(this.value);if(S.searchKeyword)doSearchWithHistory()});
 
   document.querySelectorAll('.view-btn').forEach(function(b){b.addEventListener('click',function(){setView(this.dataset.view)})});
   document.querySelectorAll('.nav-item[data-view]').forEach(function(b){b.addEventListener('click',function(){setView(this.dataset.view)})});
