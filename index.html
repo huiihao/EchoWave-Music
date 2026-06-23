@@ -118,9 +118,10 @@ button{cursor:pointer;border:none;background:none}
 .state-empty{text-align:center;padding:60px 20px;color:var(--text-muted)}
 .state-empty .empty-icon{font-size:48px;margin-bottom:12px;opacity:0.3}
 .state-empty p{font-size:14px;line-height:1.6}
-.now-playing{display:none;flex-direction:column;align-items:center;padding:8px 0}
+.now-playing{display:none;flex-direction:column;align-items:center;height:100%;overflow:hidden}
 .now-playing.active{display:flex}
-.np-cover-wrap{width:clamp(200px,28vw,280px);height:clamp(200px,28vw,280px);border-radius:var(--radius-xl);overflow:hidden;margin-bottom:20px;background:linear-gradient(150deg,#1a1650,#0f1030,#1a1035);background-size:cover;background-position:center;box-shadow:0 20px 50px rgba(0,0,0,0.5),0 0 40px var(--accent-glow);position:relative}
+.np-player-top{flex-shrink:0;display:flex;flex-direction:column;align-items:center;width:100%}
+.np-cover-wrap{width:clamp(140px,20vw,260px);height:clamp(140px,20vw,260px);border-radius:var(--radius-xl);overflow:hidden;margin-bottom:12px;background:linear-gradient(150deg,#1a1650,#0f1030,#1a1035);background-size:cover;background-position:center;box-shadow:0 20px 50px rgba(0,0,0,0.5),0 0 40px var(--accent-glow);position:relative}
 .np-cover-wrap .np-cover-inner{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
 .np-cover-wrap.has-cover .np-disc{display:none}
 .np-disc{width:55%;height:55%;border-radius:50%;border:8px solid rgba(0,0,0,0.7);background:radial-gradient(circle,#16141f 0%,#000 45%,#222 70%,#000 100%);position:relative;animation:spin 20s linear infinite}
@@ -130,25 +131,26 @@ button{cursor:pointer;border:none;background:none}
 .np-track-title{font-family:'Space Grotesk',sans-serif;font-size:clamp(18px,2.5vw,26px);font-weight:700;letter-spacing:-0.03em;text-align:center;margin-bottom:4px}
 .np-track-artist{font-size:14px;color:var(--text-secondary);text-align:center;margin-bottom:6px}
 .np-badges{display:flex;gap:6px;justify-content:center;margin-bottom:18px}
-.np-progress-wrap{width:100%;max-width:440px;margin-bottom:16px}
-.np-times{display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:6px}
+.np-progress-wrap{width:100%;max-width:440px;margin-bottom:10px}
+.np-times{display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:4px}
 .np-progress-bar{height:4px;border-radius:4px;background:rgba(255,255,255,0.08);position:relative;cursor:pointer}
 .np-progress-bar::before{content:'';position:absolute;inset:-16px 0;z-index:0}
 .np-progress-fill{position:absolute;inset:0;border-radius:4px;width:0%;background:linear-gradient(90deg,var(--accent),var(--mint));z-index:1;transition:width 0.3s linear}
 .np-progress-handle{position:absolute;top:50%;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 0 8px rgba(0,0,0,0.5);transform:translate(-50%,-50%);z-index:2;opacity:0;transition:opacity var(--transition)}
 .np-progress-bar:hover .np-progress-handle{opacity:1}
-.np-controls{display:flex;align-items:center;gap:8px;margin-bottom:20px}
+.np-controls{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .np-ctrl-btn{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--text-secondary);transition:all var(--transition)}
 .np-ctrl-btn:hover{background:rgba(255,255,255,0.06);color:var(--text-primary)}
 .np-ctrl-btn.play-btn{width:48px;height:48px;background:var(--accent);color:#fff;font-size:20px;box-shadow:0 4px 18px var(--accent-glow)}
 .np-ctrl-btn.play-btn:hover{transform:scale(1.06);box-shadow:0 6px 24px var(--accent-glow)}
 .np-volume-row{display:flex;align-items:center;gap:6px;margin-left:12px}
 .np-volume-row input[type=range]{width:80px;accent-color:var(--accent);height:3px}
-.np-extra-actions{display:flex;gap:6px}
+.np-extra-actions{display:flex;gap:6px;flex-shrink:0;padding-bottom:6px}
 .np-extra-btn{padding:6px 14px;border-radius:var(--radius-full);font-size:11px;font-weight:500;border:1px solid var(--border);color:var(--text-secondary);transition:all var(--transition)}
 .np-extra-btn:hover{border-color:var(--border-active);color:var(--text-primary)}
 .np-extra-btn.fav-active{color:var(--rose);border-color:rgba(233,107,126,0.3);background:rgba(233,107,126,0.08)}
-.np-lyrics{width:100%;max-width:480px;flex:1;min-height:0;overflow-y:auto;text-align:center;padding:10px 16px;position:relative}
+.np-lyrics{width:100%;max-width:480px;flex:1;min-height:0;overflow-y:auto;text-align:center;padding:6px 16px 12px;position:relative}
+.np-lyrics-separator{width:60px;height:1px;background:var(--border);margin:0 auto 8px;flex-shrink:0}
 .np-lyrics-line{font-size:15px;color:rgba(234,234,240,0.28);padding:6px 0;transition:all 0.35s ease;cursor:pointer;line-height:1.6}
 .np-lyrics-line.active{color:transparent;font-weight:600;font-size:18px;transform:scale(1.04);background:linear-gradient(135deg,#c4b5fd,#67e8f9);-webkit-background-clip:text;background-clip:text;text-shadow:0 0 20px rgba(123,108,246,0.3)}
 .np-lyrics-line:hover{color:var(--text-secondary)}
@@ -287,26 +289,29 @@ button{cursor:pointer;border:none;background:none}
         <div id="result-grid" class="result-grid"><div class="state-empty"><div class="empty-icon">🎧</div><p>Discover music from<br/>NetEase · QQ · Kuwo · Kugou · Migu</p></div></div>
       </div>
       <div id="nowplaying-view" class="now-playing">
-        <div class="np-cover-wrap" id="np-cover-wrap"><div class="np-cover-inner"><div class="np-disc" id="np-disc"></div></div></div>
-        <div class="np-track-title" id="np-title">No Track</div>
-        <div class="np-track-artist" id="np-artist">Select a song to play</div>
-        <div style="text-align:center;margin-bottom:4px"><span id="np-context-label" style="font-size:10px;color:var(--text-muted);background:rgba(255,255,255,0.04);padding:2px 10px;border-radius:var(--radius-full)"></span></div>
-        <div class="np-badges"><span class="card-source-badge" id="np-source-badge" style="display:none"></span><span class="card-quality-badge" id="np-quality-badge" style="display:none"></span></div>
-        <div class="np-progress-wrap">
-          <div class="np-times"><span id="np-time-current">00:00</span><span id="np-time-duration">00:00</span></div>
-          <div class="np-progress-bar" id="np-progress-bar"><div class="np-progress-fill" id="np-progress-fill"></div><div class="np-progress-handle" id="np-progress-handle"></div></div>
-        </div>
-        <div class="np-controls">
-          <button class="np-ctrl-btn" id="np-mode-btn" title="Play mode">🔁</button>
-          <button class="np-ctrl-btn" id="np-prev-btn">⏮</button>
-          <button class="np-ctrl-btn play-btn" id="np-play-btn">▶</button>
-          <button class="np-ctrl-btn" id="np-next-btn">⏭</button>
-          <div class="np-volume-row"><span style="font-size:14px">🔊</span><input type="range" id="np-volume" min="0" max="1" step="0.05" value="0.8"/></div>
-        </div>
-        <div class="np-extra-actions">
-          <button class="np-extra-btn" id="np-fav-btn">♥ Favorite</button>
-          <button class="np-extra-btn" id="np-download-btn">⬇ Download</button>
-          <button class="np-extra-btn" id="np-lyricfx-btn">✨ Lyrics FX</button>
+        <div class="np-player-top">
+          <div class="np-cover-wrap" id="np-cover-wrap"><div class="np-cover-inner"><div class="np-disc" id="np-disc"></div></div></div>
+          <div class="np-track-title" id="np-title">No Track</div>
+          <div class="np-track-artist" id="np-artist">Select a song to play</div>
+          <div style="text-align:center;margin-bottom:2px"><span id="np-context-label" style="font-size:10px;color:var(--text-muted);background:rgba(255,255,255,0.04);padding:2px 10px;border-radius:var(--radius-full)"></span></div>
+          <div class="np-badges"><span class="card-source-badge" id="np-source-badge" style="display:none"></span><span class="card-quality-badge" id="np-quality-badge" style="display:none"></span></div>
+          <div class="np-progress-wrap">
+            <div class="np-times"><span id="np-time-current">00:00</span><span id="np-time-duration">00:00</span></div>
+            <div class="np-progress-bar" id="np-progress-bar"><div class="np-progress-fill" id="np-progress-fill"></div><div class="np-progress-handle" id="np-progress-handle"></div></div>
+          </div>
+          <div class="np-controls">
+            <button class="np-ctrl-btn" id="np-mode-btn" title="Play mode">🔁</button>
+            <button class="np-ctrl-btn" id="np-prev-btn">⏮</button>
+            <button class="np-ctrl-btn play-btn" id="np-play-btn">▶</button>
+            <button class="np-ctrl-btn" id="np-next-btn">⏭</button>
+            <div class="np-volume-row"><span style="font-size:14px">🔊</span><input type="range" id="np-volume" min="0" max="1" step="0.05" value="0.8"/></div>
+          </div>
+          <div class="np-extra-actions">
+            <button class="np-extra-btn" id="np-fav-btn">♥ Favorite</button>
+            <button class="np-extra-btn" id="np-download-btn">⬇ Download</button>
+            <button class="np-extra-btn" id="np-lyricfx-btn">✨ Lyrics FX</button>
+          </div>
+          <div class="np-lyrics-separator"></div>
         </div>
         <div class="np-lyrics" id="np-lyrics"><p style="color:var(--text-muted);text-align:center;padding:30px 0">Lyrics will appear here</p></div>
       </div>
