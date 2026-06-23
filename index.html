@@ -282,7 +282,10 @@ button{cursor:pointer;border:none;background:none}
   <main id="main">
     <div id="topbar">
       <h1 id="view-title">Discover</h1>
-      <div class="view-toggle"><button class="view-btn active" data-view="search">Search</button><button class="view-btn" data-view="nowplaying">Player</button></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="view-toggle"><button class="view-btn active" data-view="search">Search</button><button class="view-btn" data-view="nowplaying">Player</button></div>
+        <button id="theme-toggle-top" title="Toggle theme" style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;background:var(--bg-elevated);border:1px solid var(--border);transition:all var(--transition)"><span class="toggle-icon">🌙</span></button>
+      </div>
     </div>
     <div id="content">
       <div id="search-view">
@@ -663,18 +666,23 @@ function init(){
   // Theme
   var savedTheme=localStorage.getItem('echowave-theme')||'dark';
   applyTheme(savedTheme);
-  $('theme-toggle').addEventListener('click',function(){
+  function toggleTheme(){
     var next=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
     applyTheme(next);localStorage.setItem('echowave-theme',next);
-  });
+  }
+  $('theme-toggle').addEventListener('click',toggleTheme);
+  $('theme-toggle-top').addEventListener('click',toggleTheme);
 
   setView('search');
 }
 function applyTheme(t){
   document.documentElement.setAttribute('data-theme',t);
-  var btn=$('theme-toggle'),icon=btn.querySelector('.toggle-icon');
-  icon.textContent=t==='dark'?'🌙':'☀️';
-  btn.classList.toggle('light',t==='light');
+  document.querySelectorAll('#theme-toggle .toggle-icon, #theme-toggle-top .toggle-icon').forEach(function(icon){
+    icon.textContent=t==='dark'?'🌙':'☀️';
+  });
+  document.querySelectorAll('#theme-toggle, #theme-toggle-top').forEach(function(btn){
+    btn.classList.toggle('light',t==='light');
+  });
 }
 document.addEventListener('DOMContentLoaded',init);
 })();
