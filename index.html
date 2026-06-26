@@ -617,7 +617,13 @@ function init(){
   D.audio.addEventListener('error',function(){var e=D.audio.error,msg='Audio error';if(e&&e.code===4)msg='Format not supported';else if(e&&e.code===3)msg='Audio decode failed';else if(e&&e.code===2)msg='Network error';$('np-artist').textContent=msg});
 
   $('np-volume').addEventListener('input',function(){D.audio.volume=this.value});D.audio.volume=0.8;
-  $('np-progress-bar').addEventListener('click',function(e){var r=this.getBoundingClientRect();if(D.audio.duration)D.audio.currentTime=((e.clientX-r.left)/r.width)*D.audio.duration});
+  // Progress bar: click + drag
+  var dragging=false;
+  function seekFromEvent(e){var r=$('np-progress-bar').getBoundingClientRect();var pct=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));$('np-progress-fill').style.width=(pct*100)+'%';$('np-progress-handle').style.left=(pct*100)+'%';if(D.audio.duration)D.audio.currentTime=pct*D.audio.duration}
+  $('np-progress-bar').addEventListener('pointerdown',function(e){dragging=true;$('np-progress-handle').style.opacity='1';seekFromEvent(e);this.setPointerCapture(e.pointerId)});
+  $('np-progress-bar').addEventListener('pointermove',function(e){if(!dragging)return;seekFromEvent(e)});
+  document.addEventListener('pointerup',function(){if(dragging){dragging=false;$('np-progress-handle').style.opacity='0'}});
+  $('np-progress-bar').addEventListener('pointercancel',function(){dragging=false;$('np-progress-handle').style.opacity='0'});
 
   function doSearchWithHistory(){S.searchKeyword=$('search-input').value.trim();saveSearchHistory(S.searchKeyword);doSearch(true)}
   $('search-input').addEventListener('keydown',function(e){if(e.key==='Enter'){doSearchWithHistory()}});
