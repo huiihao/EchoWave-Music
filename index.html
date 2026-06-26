@@ -609,7 +609,7 @@ function init(){
   D={audio:$('audio'),plSelect:$('pl-playlist-select')};
   loadLibrary();checkProxy().then(function(){renderSourceFilters();renderPlaylistOptions();updateSidebarCounts()});
 
-  D.audio.addEventListener('timeupdate',function(){const t=D.audio.currentTime,d=D.audio.duration||0;$('np-time-current').textContent=fmtTime(t);$('np-time-duration').textContent=fmtTime(d);const pct=d?t/d*100:0;$('np-progress-fill').style.width=pct+'%';updateLyricHighlight(t)});
+  D.audio.addEventListener('timeupdate',function(){const t=D.audio.currentTime,d=D.audio.duration||0;$('np-time-current').textContent=fmtTime(t);$('np-time-duration').textContent=fmtTime(d);const pct=d?t/d*100:0;$('np-progress-fill').style.width=pct+'%';$('np-progress-handle').style.left=pct+'%';updateLyricHighlight(t)});
   D.audio.addEventListener('loadedmetadata',function(){$('np-time-duration').textContent=fmtTime(D.audio.duration);$('np-artist').textContent=S.currentTrack?S.currentTrack.artist:''});
   D.audio.addEventListener('ended',playNext);
   D.audio.addEventListener('play',function(){S.isPlaying=true;updatePlayButton()});
