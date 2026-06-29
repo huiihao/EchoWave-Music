@@ -619,7 +619,7 @@ function init(){
   D={audio:$('audio'),plSelect:$('pl-playlist-select')};
   loadLibrary();checkProxy().then(function(){renderSourceFilters();renderPlaylistOptions();updateSidebarCounts()});
 
-  D.audio.addEventListener('timeupdate',function(){var t=D.audio.currentTime,d=D.audio.duration||0;$('np-time-current').textContent=fmtTime(t);$('np-time-duration').textContent=fmtTime(d);var pct=d?t/d*100:0;$('np-progress-fill').style.width=pct+'%';$('np-progress-handle').style.left=pct+'%';updateLyricHighlight(t);var ab=S.abLoop;if(ab.b!==null&&ab.a!==null&&t>=ab.b){D.audio.currentTime=ab.a}});
+  D.audio.addEventListener('timeupdate',function(){var t=D.audio.currentTime,d=D.audio.duration||0;$('np-time-current').textContent=fmtTime(t);$('np-time-duration').textContent=fmtTime(d);var pct=d?t/d*100:0;$('np-progress-fill').style.width=pct+'%';$('np-progress-handle').style.left=pct+'%';updateLyricHighlight(t);var ab=S.abLoop;if(ab.a!==null){var end=t>=D.audio.duration-0.1;if(ab.b!==null&&t>=ab.b)D.audio.currentTime=ab.a;else if(ab.b===null&&end)D.audio.currentTime=ab.a}});
   D.audio.addEventListener('loadedmetadata',function(){$('np-time-duration').textContent=fmtTime(D.audio.duration);$('np-artist').textContent=S.currentTrack?S.currentTrack.artist:''});
   D.audio.addEventListener('ended',playNext);
   D.audio.addEventListener('play',function(){S.isPlaying=true;updatePlayButton()});
@@ -677,7 +677,7 @@ function init(){
     $('np-ab-clear-btn').style.display=(aSet||bSet)?'inline-block':'none';
     if(aSet&&d){var pa=ab.a/d*100;$('np-ab-marker-a').style.left=pa+'%';$('np-ab-marker-a').classList.add('active')}else{$('np-ab-marker-a').classList.remove('active')}
     if(bSet&&d){var pb=ab.b/d*100;$('np-ab-marker-b').style.left=pb+'%';$('np-ab-marker-b').classList.add('active')}else{$('np-ab-marker-b').classList.remove('active')}
-    if(aSet&&bSet&&d){var loop=$('np-ab-loop');loop.style.left=(ab.a/d*100)+'%';loop.style.width=((ab.b-ab.a)/d*100)+'%';loop.classList.add('active')}else{$('np-ab-loop').classList.remove('active')}
+    if(aSet&&d){var loop=$('np-ab-loop'),la=ab.a/d*100,lb=bSet?(ab.b/d*100):100;loop.style.left=la+'%';loop.style.width=(lb-la)+'%';loop.classList.add('active')}else{$('np-ab-loop').classList.remove('active')}
   }
   $('np-ab-a-btn').addEventListener('click',function(){S.abLoop.a=D.audio.currentTime;updateABLoopUI()});
   $('np-ab-b-btn').addEventListener('click',function(){S.abLoop.b=D.audio.currentTime;updateABLoopUI()});
