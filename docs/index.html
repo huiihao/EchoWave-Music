@@ -152,6 +152,10 @@ button{cursor:pointer;border:none;background:none}
 .np-progress-fill{position:absolute;inset:0;border-radius:4px;width:0%;background:linear-gradient(90deg,var(--accent),var(--mint));z-index:1;transition:width 0.3s linear}
 .np-progress-handle{position:absolute;top:50%;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 0 8px rgba(0,0,0,0.5);transform:translate(-50%,-50%);z-index:2;opacity:0;transition:opacity var(--transition)}
 .np-progress-bar:hover .np-progress-handle{opacity:1}
+.np-ab-loop{position:absolute;top:0;height:100%;background:rgba(255,255,255,0.15);z-index:0;display:none;pointer-events:none}
+.np-ab-loop.active{display:block}
+.np-ab-marker{position:absolute;top:-6px;width:2px;height:16px;background:var(--rose);z-index:3;display:none;pointer-events:none}
+.np-ab-marker.active{display:block}
 .np-controls{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .np-ctrl-btn{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--text-secondary);transition:all var(--transition)}
 .np-ctrl-btn:hover{background:rgba(255,255,255,0.06);color:var(--text-primary)}
@@ -320,7 +324,7 @@ button{cursor:pointer;border:none;background:none}
           <div class="np-badges"><span class="card-source-badge" id="np-source-badge" style="display:none"></span><span class="card-quality-badge" id="np-quality-badge" style="display:none"></span></div>
           <div class="np-progress-wrap">
             <div class="np-times"><span id="np-time-current">00:00</span><span id="np-time-duration">00:00</span></div>
-            <div class="np-progress-bar" id="np-progress-bar"><div class="np-progress-fill" id="np-progress-fill"></div><div class="np-progress-handle" id="np-progress-handle"></div></div>
+            <div class="np-progress-bar" id="np-progress-bar"><div class="np-ab-loop" id="np-ab-loop"></div><div class="np-ab-marker" id="np-ab-marker-a"></div><div class="np-ab-marker" id="np-ab-marker-b"></div><div class="np-progress-fill" id="np-progress-fill"></div><div class="np-progress-handle" id="np-progress-handle"></div></div>
           </div>
           <div class="np-controls">
             <button class="np-ctrl-btn" id="np-mode-btn" title="Play mode">🔁</button>
@@ -333,6 +337,9 @@ button{cursor:pointer;border:none;background:none}
             <button class="np-extra-btn" id="np-fav-btn">♥ Favorite</button>
             <button class="np-extra-btn" id="np-download-btn">⬇ Download</button>
             <button class="np-extra-btn" id="np-lyricfx-btn">✨ Lyrics FX</button>
+            <button class="np-extra-btn" id="np-ab-a-btn" style="width:36px;padding:6px 0;text-align:center" title="Set loop start (A)">A</button>
+            <button class="np-extra-btn" id="np-ab-b-btn" style="width:36px;padding:6px 0;text-align:center" title="Set loop end (B)">B</button>
+            <button class="np-extra-btn" id="np-ab-clear-btn" style="display:none" title="Clear AB loop">↺</button>
           </div>
           <div class="np-lyrics-separator"></div>
         </div>
@@ -386,7 +393,7 @@ const S={
   searchKeyword:'',searchResults:[],trackMap:new Map(),
   favorites:[],playlists:[],currentTrack:null,
   playContext:{type:'results',index:-1,playlistId:null},
-  playMode:'list',isPlaying:false,lyricLines:[],currentLyricIndex:-1,
+  playMode:'list',abLoop:{a:null,b:null},isPlaying:false,lyricLines:[],currentLyricIndex:-1,
   searchInProgress:false,noMoreResults:false,lyricsAlt:false,muted:false
 };
 const SOURCE_ORDER=['netease','qq','kuwo','kugou','migu'];
@@ -611,10 +618,11 @@ function init(){
   D={audio:$('audio'),plSelect:$('pl-playlist-select')};
   loadLibrary();checkProxy().then(function(){renderSourceFilters();renderPlaylistOptions();updateSidebarCounts()});
 
-  D.audio.addEventListener('timeupdate',function(){const t=D.audio.currentTime,d=D.audio.duration||0;$('np-time-current').textContent=fmtTime(t);$('np-time-duration').textContent=fmtTime(d);const pct=d?t/d*100:0;$('np-progress-fill').style.width=pct+'%';$('np-progress-handle').style.left=pct+'%';updateLyricHighlight(t)});
+  D.audio.addEventListener('timeupdate',function(){var t=D.audio.currentTime,d=D.audio.duration||0;$('np-time-current').textContent=fmtTime(t);$('np-time-duration').textContent=fmtTime(d);var pct=d?t/d*100:0;$('np-progress-fill').style.width=pct+'%';$('np-progress-handle').style.left=pct+'%';updateLyricHighlight(t);var ab=S.abLoop;if(ab.b!==null&&ab.a!==null&&t>=ab.b){D.audio.currentTime=ab.a}});
   D.audio.addEventListener('loadedmetadata',function(){$('np-time-duration').textContent=fmtTime(D.audio.duration);$('np-artist').textContent=S.currentTrack?S.currentTrack.artist:''});
   D.audio.addEventListener('ended',playNext);
   D.audio.addEventListener('play',function(){S.isPlaying=true;updatePlayButton()});
+  D.audio.addEventListener('loadstart',function(){S.abLoop={a:null,b:null};updateABLoopUI()});
   D.audio.addEventListener('pause',function(){S.isPlaying=false;updatePlayButton()});
   D.audio.addEventListener('error',function(){var e=D.audio.error,msg='Audio error';if(e&&e.code===4)msg='Format not supported';else if(e&&e.code===3)msg='Audio decode failed';else if(e&&e.code===2)msg='Network error';$('np-artist').textContent=msg});
 
@@ -660,6 +668,19 @@ function init(){
   $('np-fav-btn').addEventListener('click',toggleFavoriteCurrent);
   $('np-download-btn').addEventListener('click',downloadCurrent);
   $('np-lyricfx-btn').addEventListener('click',switchLyricStyle);
+  // AB loop
+  function updateABLoopUI(){
+    var ab=S.abLoop,d=D.audio.duration||0,aSet=ab.a!==null,bSet=ab.b!==null;
+    $('np-ab-a-btn').style.color=aSet?'var(--rose)':'';$('np-ab-a-btn').style.borderColor=aSet?'rgba(233,107,126,0.4)':'';
+    $('np-ab-b-btn').style.color=bSet?'var(--rose)':'';$('np-ab-b-btn').style.borderColor=bSet?'rgba(233,107,126,0.4)':'';
+    $('np-ab-clear-btn').style.display=(aSet||bSet)?'inline-block':'none';
+    if(aSet&&d){var pa=ab.a/d*100;$('np-ab-marker-a').style.left=pa+'%';$('np-ab-marker-a').classList.add('active')}else{$('np-ab-marker-a').classList.remove('active')}
+    if(bSet&&d){var pb=ab.b/d*100;$('np-ab-marker-b').style.left=pb+'%';$('np-ab-marker-b').classList.add('active')}else{$('np-ab-marker-b').classList.remove('active')}
+    if(aSet&&bSet&&d){var loop=$('np-ab-loop');loop.style.left=(ab.a/d*100)+'%';loop.style.width=((ab.b-ab.a)/d*100)+'%';loop.classList.add('active')}else{$('np-ab-loop').classList.remove('active')}
+  }
+  $('np-ab-a-btn').addEventListener('click',function(){S.abLoop.a=D.audio.currentTime;updateABLoopUI()});
+  $('np-ab-b-btn').addEventListener('click',function(){S.abLoop.b=D.audio.currentTime;updateABLoopUI()});
+  $('np-ab-clear-btn').addEventListener('click',function(){S.abLoop={a:null,b:null};updateABLoopUI()});
   $('pl-close-btn').addEventListener('click',closePlaylistPanel);
   $('playlist-overlay').addEventListener('click',closePlaylistPanel);
   $('pl-add-current-btn').addEventListener('click',function(){if(!S.currentTrack){toast('No track playing');return}var plId=D.plSelect&&D.plSelect.value;if(!plId){toast('Select a playlist first');return}var pl=S.playlists.find(function(p){return p.id===plId});if(!pl)return;if(pl.tracks.some(function(x){return x.uid===S.currentTrack.uid})){toast('Already in playlist');return}pl.tracks.push(S.currentTrack);saveLibrary();renderPlaylistPanel();toast('Added to \"'+pl.name+'\"')});
