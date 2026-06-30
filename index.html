@@ -240,6 +240,10 @@ button{cursor:pointer;border:none;background:none}
 [data-theme="light"] .search-box{background:var(--bg-elevated)}
 [data-theme="light"] .search-box input{color:var(--text-primary)}
 [data-theme="light"] .search-box input::placeholder{color:var(--text-muted)}
+.stat-sort-btn.active{background:var(--accent)!important;color:#fff!important}
+.stat-card{transition:transform var(--transition)}
+.stat-card:hover{transform:translateY(-2px)}
+.stat-bar{height:4px;border-radius:2px;background:var(--accent);transition:width 0.5s ease;min-width:2px}
 [data-theme="light"] .np-progress-bar{background:rgba(0,0,0,0.08)}
 [data-theme="light"] .proxy-status{background:rgba(233,107,126,0.10);color:#dc4a5e}
 [data-theme="light"] .modal-overlay{background:rgba(0,0,0,0.3)}
@@ -278,6 +282,7 @@ button{cursor:pointer;border:none;background:none}
       <div class="nav-label">Library</div>
       <div class="nav-item" data-panel="playlist"><span class="nav-icon">📋</span> Playlist <span class="nav-badge" id="sidebar-track-count">0</span></div>
       <div class="nav-item" data-panel="favorites"><span class="nav-icon">♥</span> Favorites <span class="nav-badge" id="sidebar-fav-count">0</span></div>
+      <div class="nav-item" data-view="stats"><span class="nav-icon">📊</span> Statistics</div>
     </div>
     <div class="proxy-status" id="proxy-status">⚠ Proxy offline — Kuwo/Kugou/Migu limited to preview<br><span style="opacity:0.7">Run: <code>python server.py</code></span></div>
     <div class="sidebar-mini-player" id="sidebar-mini" title="Now Playing">
@@ -315,6 +320,32 @@ button{cursor:pointer;border:none;background:none}
         </div>
         <div class="result-stats"><span id="search-status">Search for music across multiple platforms</span><span id="search-count" style="font-weight:600"></span></div>
         <div id="result-grid" class="result-grid"><div class="state-empty"><div class="empty-icon">🎧</div><p>Discover music from<br/>NetEase · QQ · Kuwo · Kugou · Migu</p></div></div>
+      </div>
+      <div id="stats-view" style="display:none;flex:1;overflow-y:auto;min-height:0">
+        <div style="max-width:680px;margin:0 auto">
+          <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap">
+            <div class="stat-card" style="flex:1;min-width:140px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);padding:16px;text-align:center">
+              <div style="font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:700;color:var(--accent)" id="stat-total-plays">0</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Total Plays</div>
+            </div>
+            <div class="stat-card" style="flex:1;min-width:140px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);padding:16px;text-align:center">
+              <div style="font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:700;color:var(--mint)" id="stat-total-time">0h</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Listening Time</div>
+            </div>
+            <div class="stat-card" style="flex:1;min-width:140px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);padding:16px;text-align:center">
+              <div style="font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:700;color:var(--rose)" id="stat-unique-tracks">0</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Unique Tracks</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <h3 style="font-family:'Space Grotesk',sans-serif;font-size:16px;margin:0">Most Played</h3>
+            <div style="display:flex;gap:4px;background:var(--bg-elevated);border-radius:var(--radius-full);padding:2px">
+              <button class="stat-sort-btn active" data-sort="plays" style="padding:4px 12px;border-radius:var(--radius-full);font-size:11px;color:var(--text-secondary);background:none;border:none;cursor:pointer">By Plays</button>
+              <button class="stat-sort-btn" data-sort="time" style="padding:4px 12px;border-radius:var(--radius-full);font-size:11px;color:var(--text-secondary);background:none;border:none;cursor:pointer">By Time</button>
+            </div>
+          </div>
+          <div id="stat-list" style="display:flex;flex-direction:column;gap:4px"></div>
+        </div>
       </div>
       <div id="nowplaying-view">
         <div class="np-player-top">
@@ -395,13 +426,15 @@ const S={
   favorites:[],playlists:[],currentTrack:null,
   playContext:{type:'results',index:-1,playlistId:null},
   playMode:'list',abLoop:{a:null,b:null},isPlaying:false,lyricLines:[],currentLyricIndex:-1,
-  searchInProgress:false,noMoreResults:false,lyricsAlt:false,muted:false
+  searchInProgress:false,noMoreResults:false,lyricsAlt:false,muted:false,
+  playCounts:{},playDurations:{},listenStart:0
 };
 const SOURCE_ORDER=['netease','qq','kuwo','kugou','migu'];
 const SOURCE_LABELS={netease:'NetEase',qq:'QQ Music',kuwo:'Kuwo',kugou:'Kugou',migu:'Migu'};
 const SOURCE_DOTS={netease:'🔴',qq:'🔵',kuwo:'🟣',kugou:'💠',migu:'🟠'};
 const LS_KEY='echowave-library-v2';
 const HISTORY_KEY='echowave-search-history';
+const STATS_KEY='echowave-stats';
 const MAX_HISTORY=12;
 const $=id=>document.getElementById(id);
 let D={};
@@ -415,10 +448,12 @@ function setView(v){
   S.view=v;
   document.querySelectorAll('.view-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   document.querySelectorAll('.nav-item[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
-  $('view-title').textContent=v==='search'?'Discover':'Now Playing';
+  $('view-title').textContent=v==='search'?'Discover':v==='nowplaying'?'Now Playing':'Statistics';
   $('search-view').style.display=v==='search'?'block':'none';
   $('nowplaying-view').classList.toggle('active',v==='nowplaying');
+  $('stats-view').style.display=v==='stats'?'block':'none';
   if(v==='nowplaying')updateNowPlayingUI();
+  if(v==='stats')updateStatsView();
 }
 function openPlaylistPanel(tab){
   if(tab)S.playlistTab=tab;
@@ -547,6 +582,7 @@ function getActiveList(){if(S.playContext.type==='results')return S.searchResult
 
 async function playTrack(track,ctx){
   if(!track)return;S.currentTrack=track;S.playContext=ctx||S.playContext;
+  S.playCounts[track.uid]=(S.playCounts[track.uid]||0)+1;saveStats();
   S.lyricLines=track.lrc?parseLRC(track.lrc):[];S.currentLyricIndex=-1;
   updateNowPlayingUI();updateSidebarMini();renderLyrics();renderResults();
   try{await ensureDetails(track);updateNowPlayingUI();S.lyricLines=track.lrc?parseLRC(track.lrc):[];renderLyrics();
@@ -591,6 +627,34 @@ function renderPlaylistPanel(){
   updateSidebarCounts();
 }
 function updateSidebarCounts(){$('sidebar-track-count').textContent=S.searchResults.length;$('sidebar-fav-count').textContent=S.favorites.length}
+var statSortBy='plays';
+function updateStatsView(){
+  var totalPlays=0,totalSecs=0,tracks={};
+  Object.entries(S.playCounts).forEach(function(e){totalPlays+=e[1];var uid=e[0];if(!tracks[uid])tracks[uid]={plays:0,time:0};tracks[uid].plays=e[1]});
+  Object.entries(S.playDurations).forEach(function(e){totalSecs+=e[1];var uid=e[0];if(!tracks[uid])tracks[uid]={plays:0,time:0};tracks[uid].time=e[1]});
+  $('stat-total-plays').textContent=totalPlays;
+  $('stat-total-time').textContent=totalSecs<3600?Math.round(totalSecs/60)+'m':(totalSecs/3600).toFixed(1)+'h';
+  $('stat-unique-tracks').textContent=Object.keys(tracks).length;
+  var arr=Object.entries(tracks).map(function(e){return{uid:e[0],plays:e[1].plays,time:e[1].time}});
+  arr.sort(function(a,b){return statSortBy==='time'?b.time-a.time:b.plays-a.plays});
+  arr=arr.slice(0,30);
+  var maxVal=statSortBy==='time'?(arr[0]?arr[0].time:1):(arr[0]?arr[0].plays:1);
+  var list=$('stat-list');
+  list.innerHTML=arr.map(function(t,i){
+    var val=statSortBy==='time'?t.time:t.plays;
+    var barW=Math.max(2,(val/maxVal)*100);
+    var label=statSortBy==='time'?(val<60?Math.round(val)+'s':(val/60).toFixed(1)+'m'):t.plays+'x';
+    var name=t.uid;var track=S.trackMap.get(t.uid);
+    if(track)name=track.title+' - '+track.artist;
+    return'<div style="display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:var(--radius-sm);font-size:12px;transition:all var(--transition)" onmouseover="this.style.background=\'var(--bg-hover)\'" onmouseout="this.style.background=\'transparent\'">'+
+      '<span style="color:var(--text-muted);width:22px;text-align:right;flex-shrink:0">'+(i+1)+'</span>'+
+      '<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(name)+'</span>'+
+      '<span style="color:var(--text-muted);font-weight:600;flex-shrink:0;width:50px;text-align:right">'+label+'</span>'+
+      '<div style="width:80px;flex-shrink:0;background:rgba(255,255,255,0.06);border-radius:2px;height:4px"><div class="stat-bar" style="width:'+barW+'%"></div></div>'+
+    '</div>';
+  }).join('');
+  if(!arr.length){list.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:30px">Play some music to see stats</div>'}
+}
 
 /* ── Playlist Management ── */
 function createNewPlaylist(){openNewPlaylistModal()}
@@ -606,6 +670,9 @@ function exportPlaylistData(){const data={version:2,favorites:S.favorites,playli
 function importPlaylistFile(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=function(){try{const data=JSON.parse(reader.result);if(data.favorites)S.favorites=[...S.favorites,...data.favorites];if(data.playlists)S.playlists=[...S.playlists,...data.playlists];saveLibrary();renderPlaylistOptions();renderPlaylistPanel();if(S.playlists.length&&D.plSelect){D.plSelect.value=S.playlists[0].id}toast('Import complete')}catch(e){toast('Import failed - invalid file')}};reader.readAsText(file);input.value=''}
 function saveLibrary(){try{localStorage.setItem(LS_KEY,JSON.stringify({favorites:S.favorites,playlists:S.playlists}))}catch(e){}}
 function loadLibrary(){try{const raw=localStorage.getItem(LS_KEY);if(!raw)return;const data=JSON.parse(raw);if(data.favorites)S.favorites=data.favorites;if(data.playlists)S.playlists=data.playlists}catch(e){}}
+function saveStats(){try{localStorage.setItem(STATS_KEY,JSON.stringify({playCounts:S.playCounts,playDurations:S.playDurations}))}catch(e){}}
+function loadStats(){try{var raw=localStorage.getItem(STATS_KEY);if(!raw)return;var d=JSON.parse(raw);if(d.playCounts)S.playCounts=d.playCounts;if(d.playDurations)S.playDurations=d.playDurations}catch(e){}}
+function accDuration(){if(!S.isPlaying||!S.listenStart)return;var dur=Date.now()/1000-S.listenStart;if(dur<2)return;var uid=S.currentTrack?S.currentTrack.uid:null;if(uid){S.playDurations[uid]=(S.playDurations[uid]||0)+dur}S.listenStart=Date.now()/1000}
 
 /* ── Proxy Check ── */
 async function checkProxy(){
@@ -617,14 +684,14 @@ async function checkProxy(){
 /* ── Init ── */
 function init(){
   D={audio:$('audio'),plSelect:$('pl-playlist-select')};
-  loadLibrary();checkProxy().then(function(){renderSourceFilters();renderPlaylistOptions();updateSidebarCounts()});
+  loadLibrary();loadStats();checkProxy().then(function(){renderSourceFilters();renderPlaylistOptions();updateSidebarCounts()});
 
   D.audio.addEventListener('timeupdate',function(){var t=D.audio.currentTime,d=D.audio.duration||0;$('np-time-current').textContent=fmtTime(t);$('np-time-duration').textContent=fmtTime(d);var pct=d?t/d*100:0;$('np-progress-fill').style.width=pct+'%';$('np-progress-handle').style.left=pct+'%';updateLyricHighlight(t);var ab=S.abLoop;if(ab.a!==null){var end=t>=D.audio.duration-0.1;if(ab.b!==null&&t>=ab.b)D.audio.currentTime=ab.a;else if(ab.b===null&&end)D.audio.currentTime=ab.a}});
   D.audio.addEventListener('loadedmetadata',function(){$('np-time-duration').textContent=fmtTime(D.audio.duration);$('np-artist').textContent=S.currentTrack?S.currentTrack.artist:''});
-  D.audio.addEventListener('ended',function(){if(S.abLoop.a!==null&&S.abLoop.b===null){D.audio.currentTime=S.abLoop.a;D.audio.play().catch(function(){})}else if(S.playMode==='single'){D.audio.currentTime=0;D.audio.play().catch(function(){})}else{playNext()}});
-  D.audio.addEventListener('play',function(){S.isPlaying=true;updatePlayButton()});
-  D.audio.addEventListener('loadstart',function(){S.abLoop={a:null,b:null};updateABLoopUI()});
-  D.audio.addEventListener('pause',function(){S.isPlaying=false;updatePlayButton()});
+  D.audio.addEventListener('ended',function(){accDuration();saveStats();if(S.abLoop.a!==null&&S.abLoop.b===null){D.audio.currentTime=S.abLoop.a;D.audio.play().catch(function(){})}else if(S.playMode==='single'){D.audio.currentTime=0;D.audio.play().catch(function(){})}else{playNext()}});
+  D.audio.addEventListener('play',function(){S.isPlaying=true;S.listenStart=Date.now()/1000;updatePlayButton()});
+  D.audio.addEventListener('loadstart',function(){accDuration();S.abLoop={a:null,b:null};updateABLoopUI()});
+  D.audio.addEventListener('pause',function(){accDuration();S.isPlaying=false;updatePlayButton()});
   D.audio.addEventListener('error',function(){var e=D.audio.error,msg='Audio error';if(e&&e.code===4)msg='Format not supported';else if(e&&e.code===3)msg='Audio decode failed';else if(e&&e.code===2)msg='Network error';$('np-artist').textContent=msg});
 
   $('np-volume').addEventListener('input',function(){D.audio.volume=this.value});D.audio.volume=0.8;
@@ -706,6 +773,8 @@ function init(){
   $('theme-toggle').addEventListener('click',toggleTheme);
   $('theme-toggle-top').addEventListener('click',toggleTheme);
 
+  // Stat sort buttons
+  document.querySelectorAll('.stat-sort-btn').forEach(function(b){b.addEventListener('click',function(){statSortBy=this.dataset.sort;document.querySelectorAll('.stat-sort-btn').forEach(function(x){x.classList.toggle('active',x===this)}.bind(this));updateStatsView()})});
   setView('search');
 }
 function applyTheme(t){
