@@ -582,7 +582,10 @@ function getActiveList(){if(S.playContext.type==='results')return S.searchResult
 
 async function playTrack(track,ctx){
   if(!track)return;S.currentTrack=track;S.playContext=ctx||S.playContext;
-  S.playCounts[track.uid]=(S.playCounts[track.uid]||0)+1;saveStats();
+  S.playCounts[track.uid]=(S.playCounts[track.uid]||0)+1;
+  if(!S._statsMeta)S._statsMeta={};
+  S._statsMeta[track.uid]={title:track.title||'',artist:track.artist||'',source:track.source||''};
+  saveStats();
   S.lyricLines=track.lrc?parseLRC(track.lrc):[];S.currentLyricIndex=-1;
   updateNowPlayingUI();updateSidebarMini();renderLyrics();renderResults();
   try{await ensureDetails(track);updateNowPlayingUI();S.lyricLines=track.lrc?parseLRC(track.lrc):[];renderLyrics();
@@ -644,8 +647,8 @@ function updateStatsView(){
     var val=statSortBy==='time'?t.time:t.plays;
     var barW=Math.max(2,(val/maxVal)*100);
     var label=statSortBy==='time'?(val<60?Math.round(val)+'s':(val/60).toFixed(1)+'m'):t.plays+'x';
-    var name=t.uid;var track=S.trackMap.get(t.uid);
-    if(track)name=track.title+' - '+track.artist;
+    var name=t.uid;var track=S.trackMap.get(t.uid)||(S._statsMeta||{})[t.uid];
+    if(track&&track.title)name=track.title+(track.artist?' - '+track.artist:'');
     return'<div style="display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:var(--radius-sm);font-size:12px;transition:all var(--transition)" onmouseover="this.style.background=\'var(--bg-hover)\'" onmouseout="this.style.background=\'transparent\'">'+
       '<span style="color:var(--text-muted);width:22px;text-align:right;flex-shrink:0">'+(i+1)+'</span>'+
       '<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(name)+'</span>'+
@@ -670,8 +673,17 @@ function exportPlaylistData(){const data={version:2,favorites:S.favorites,playli
 function importPlaylistFile(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=function(){try{const data=JSON.parse(reader.result);if(data.favorites)S.favorites=[...S.favorites,...data.favorites];if(data.playlists)S.playlists=[...S.playlists,...data.playlists];saveLibrary();renderPlaylistOptions();renderPlaylistPanel();if(S.playlists.length&&D.plSelect){D.plSelect.value=S.playlists[0].id}toast('Import complete')}catch(e){toast('Import failed - invalid file')}};reader.readAsText(file);input.value=''}
 function saveLibrary(){try{localStorage.setItem(LS_KEY,JSON.stringify({favorites:S.favorites,playlists:S.playlists}))}catch(e){}}
 function loadLibrary(){try{const raw=localStorage.getItem(LS_KEY);if(!raw)return;const data=JSON.parse(raw);if(data.favorites)S.favorites=data.favorites;if(data.playlists)S.playlists=data.playlists}catch(e){}}
-function saveStats(){try{localStorage.setItem(STATS_KEY,JSON.stringify({playCounts:S.playCounts,playDurations:S.playDurations}))}catch(e){}}
-function loadStats(){try{var raw=localStorage.getItem(STATS_KEY);if(!raw)return;var d=JSON.parse(raw);if(d.playCounts)S.playCounts=d.playCounts;if(d.playDurations)S.playDurations=d.playDurations}catch(e){}}
+function saveStats(){
+  try{
+    var meta={};
+    Object.keys(S.playCounts).forEach(function(uid){
+      var t=S.trackMap.get(uid);
+      if(t)meta[uid]={title:t.title||'',artist:t.artist||'',source:t.source||''};
+    });
+    localStorage.setItem(STATS_KEY,JSON.stringify({playCounts:S.playCounts,playDurations:S.playDurations,trackMeta:meta}))
+  }catch(e){}
+}
+function loadStats(){try{var raw=localStorage.getItem(STATS_KEY);if(!raw)return;var d=JSON.parse(raw);if(d.playCounts)S.playCounts=d.playCounts;if(d.playDurations)S.playDurations=d.playDurations;S._statsMeta=d.trackMeta||{}}catch(e){}}
 function accDuration(){if(!S.isPlaying||!S.listenStart)return;var dur=Date.now()/1000-S.listenStart;if(dur<2)return;var uid=S.currentTrack?S.currentTrack.uid:null;if(uid){S.playDurations[uid]=(S.playDurations[uid]||0)+dur}S.listenStart=Date.now()/1000}
 
 /* ── Proxy Check ── */
