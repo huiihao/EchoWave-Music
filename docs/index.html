@@ -311,11 +311,7 @@ button{cursor:pointer;border:none;background:none}
             <div class="search-history" id="search-history"></div>
           </div>
           <div class="source-filters" id="source-filters"></div>
-          <div class="limit-row">
-            <span>Per source:</span>
-            <select id="limit-select"><option value="5">5</option><option value="10" selected>10</option><option value="15">15</option><option value="20">20</option></select>
-            <button class="load-more-btn" id="load-more-btn" style="display:none">Load more</button>
-          </div>
+          <div class="limit-row" style="font-size:11px;color:var(--text-muted)">Scroll down to load more</div>
         </div>
         <div class="result-stats"><span id="search-status">Search for music across multiple platforms</span><span id="search-count" style="font-weight:600"></span></div>
         <div id="result-grid" class="result-grid"><div class="state-empty"><div class="empty-icon">🎧</div><p>Discover music from<br/>NetEase · QQ Music</p></div></div>
@@ -513,7 +509,7 @@ async function doSearch(reset){
   S.searchInProgress=false;$('search-status').textContent=added===0?'No results found':'Search complete';
   $('search-count').textContent=S.searchResults.length+' tracks';renderResults();renderPlaylistPanel();
 }
-function loadMore(){$('search-status').textContent='Loading more...';SOURCE_ORDER.forEach(s=>{S.perSourcePage[s]=(S.perSourcePage[s]||1)+1});doSearch(false)}
+function loadMore(){if(S.searchInProgress||S.noMoreResults)return;S.searchInProgress=true;$('search-status').textContent='Loading more...';SOURCE_ORDER.forEach(s=>{S.perSourcePage[s]=(S.perSourcePage[s]||1)+1});doSearch(false)}
 function getSearchHistory(){try{return JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]')}catch(e){return[]}}
 function saveSearchHistory(kw){if(!kw)return;var h=getSearchHistory();h=h.filter(function(x){return x!==kw});h.unshift(kw);if(h.length>MAX_HISTORY)h=h.slice(0,MAX_HISTORY);localStorage.setItem(HISTORY_KEY,JSON.stringify(h))}
 function renderSearchHistory(){var h=getSearchHistory();var el=$('search-history');if(!h.length){el.innerHTML='';el.classList.remove('open');return}
@@ -544,7 +540,7 @@ function renderResults(){
       <div class="card-actions"><button class="card-btn fav-btn${isFav(t)?' fav-active':''}" data-action="fav" data-uid="${escHtml(t.uid)}">♥</button><button class="card-btn" data-action="addpl" data-uid="${escHtml(t.uid)}">+</button></div>
     </div>`;
   }).join('');
-  $('load-more-btn').style.display=S.noMoreResults?'none':'inline-block';
+  if(S.noMoreResults&&S.searchResults.length)$('search-status').textContent='All results loaded · '+S.searchResults.length+' tracks';
 }
 
 /* ── Detail Fetch ── */
@@ -724,8 +720,16 @@ function init(){
   $('search-history').addEventListener('click',function(e){if(e.target.dataset.del){e.stopPropagation();var h=getSearchHistory().filter(function(x){return x!==e.target.dataset.del});localStorage.setItem(HISTORY_KEY,JSON.stringify(h));renderSearchHistory()}});
   $('search-history').addEventListener('click',function(e){if(e.target.id==='sh-clear'){localStorage.removeItem(HISTORY_KEY);renderSearchHistory()}});
   document.addEventListener('click',function(e){if(!$('search-box-wrap').contains(e.target))$('search-history').classList.remove('open')});
-  $('load-more-btn').addEventListener('click',loadMore);
-  $('limit-select').addEventListener('change',function(){S.perSourceLimit=parseInt(this.value);if(S.searchKeyword)doSearchWithHistory()});
+  // Infinite scroll: auto-load when near bottom
+  var scrollTimer=null;
+  $('content').addEventListener('scroll',function(){
+    if(S.view!=='search'||S.searchInProgress||S.noMoreResults)return;
+    clearTimeout(scrollTimer);
+    scrollTimer=setTimeout(function(){
+      var el=$('content'),bottom=el.scrollTop+el.clientHeight;
+      if(bottom>=el.scrollHeight-200)loadMore();
+    },300);
+  });
 
   document.querySelectorAll('.view-btn').forEach(function(b){b.addEventListener('click',function(){setView(this.dataset.view)})});
   document.querySelectorAll('.nav-item[data-view]').forEach(function(b){b.addEventListener('click',function(){setView(this.dataset.view)})});
