@@ -154,7 +154,8 @@ button{cursor:pointer;border:none;background:none}
 .np-progress-bar:hover .np-progress-handle{opacity:1}
 .np-ab-loop{position:absolute;top:0;height:100%;background:rgba(255,255,255,0.15);z-index:0;display:none;pointer-events:none}
 .np-ab-loop.active{display:block}
-.np-ab-marker{position:absolute;top:-6px;width:2px;height:16px;background:var(--rose);z-index:3;display:none;pointer-events:none}
+.np-ab-marker{position:absolute;top:-6px;width:8px;height:18px;background:var(--rose);z-index:3;display:none;cursor:ew-resize;border-radius:2px;transform:translateX(-4px)}
+.np-ab-marker::after{content:attr(data-label);position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--rose);font-weight:700;white-space:nowrap}
 .np-ab-marker.active{display:block}
 .np-controls{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .np-ctrl-btn{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--text-secondary);transition:all var(--transition)}
@@ -351,7 +352,7 @@ button{cursor:pointer;border:none;background:none}
           <div class="np-badges"><span class="card-source-badge" id="np-source-badge" style="display:none"></span><span class="card-quality-badge" id="np-quality-badge" style="display:none"></span></div>
           <div class="np-progress-wrap">
             <div class="np-times"><span id="np-time-current">00:00</span><span id="np-time-duration">00:00</span></div>
-            <div class="np-progress-bar" id="np-progress-bar"><div class="np-ab-loop" id="np-ab-loop"></div><div class="np-ab-marker" id="np-ab-marker-a"></div><div class="np-ab-marker" id="np-ab-marker-b"></div><div class="np-progress-fill" id="np-progress-fill"></div><div class="np-progress-handle" id="np-progress-handle"></div></div>
+            <div class="np-progress-bar" id="np-progress-bar"><div class="np-ab-loop" id="np-ab-loop"></div><div class="np-ab-marker" id="np-ab-marker-a" data-label="A"></div><div class="np-ab-marker" id="np-ab-marker-b" data-label="B"></div><div class="np-progress-fill" id="np-progress-fill"></div><div class="np-progress-handle" id="np-progress-handle"></div></div>
           </div>
           <div class="np-controls">
             <button class="np-ctrl-btn" id="np-mode-btn" title="Play mode">🔁</button>
@@ -764,6 +765,17 @@ function init(){
   $('np-ab-a-btn').addEventListener('click',function(){S.abLoop.a=D.audio.currentTime;updateABLoopUI()});
   $('np-ab-b-btn').addEventListener('click',function(){S.abLoop.b=D.audio.currentTime;updateABLoopUI()});
   $('np-ab-clear-btn').addEventListener('click',function(){S.abLoop={a:null,b:null};updateABLoopUI()});
+  // AB marker drag
+  ['a','b'].forEach(function(mark){
+    var el=$('np-ab-marker-'+mark);
+    el.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();
+      var d=D.audio.duration||1,bar=$('np-progress-bar'),dragging=true;
+      function onMove(ev){if(!dragging||!d)return;var r=bar.getBoundingClientRect(),pct=Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width));S.abLoop[mark]=pct*d;updateABLoopUI()}
+      function onUp(){dragging=false;document.removeEventListener('pointermove',onMove);document.removeEventListener('pointerup',onUp)}
+      document.addEventListener('pointermove',onMove);document.addEventListener('pointerup',onUp);
+    });
+    el.addEventListener('touchstart',function(e){e.preventDefault()});
+  });
   $('pl-close-btn').addEventListener('click',closePlaylistPanel);
   $('playlist-overlay').addEventListener('click',closePlaylistPanel);
   $('pl-add-current-btn').addEventListener('click',function(){if(!S.currentTrack){toast('No track playing');return}var plId=D.plSelect&&D.plSelect.value;if(!plId){toast('Select a playlist first');return}var pl=S.playlists.find(function(p){return p.id===plId});if(!pl)return;if(pl.tracks.some(function(x){return x.uid===S.currentTrack.uid})){toast('Already in playlist');return}pl.tracks.push(S.currentTrack);saveLibrary();renderPlaylistPanel();toast('Added to \"'+pl.name+'\"')});
