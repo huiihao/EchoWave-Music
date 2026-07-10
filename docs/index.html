@@ -748,7 +748,7 @@ function init(){
   $('sidebar-mini-play').addEventListener('click',togglePlayPause);
   $('np-prev-btn').addEventListener('click',playPrev);
   $('np-next-btn').addEventListener('click',playNext);
-  $('np-mode-btn').addEventListener('click',setPlayMode);
+  $('np-mode-btn').addEventListener('click',function(){if(S.abLoop.a!==null||S.abLoop.b!==null){toast('AB loop is active — clear it to change play mode');return}setPlayMode()});
   $('np-fav-btn').addEventListener('click',toggleFavoriteCurrent);
   $('np-download-btn').addEventListener('click',downloadCurrent);
   $('np-lyricfx-btn').addEventListener('click',switchLyricStyle);
