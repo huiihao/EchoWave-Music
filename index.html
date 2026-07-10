@@ -764,14 +764,14 @@ function init(){
     if(aSet&&d){var loop=$('np-ab-loop'),la=ab.a/d*100,lb=bSet?(ab.b/d*100):100;loop.style.left=la+'%';loop.style.width=(lb-la)+'%';loop.classList.add('active')}else{$('np-ab-loop').classList.remove('active')}
   }
   $('np-ab-a-btn').addEventListener('click',function(){S.abLoop.a=D.audio.currentTime;updateABLoopUI()});
-  $('np-ab-b-btn').addEventListener('click',function(){S.abLoop.b=D.audio.currentTime;updateABLoopUI()});
+  $('np-ab-b-btn').addEventListener('click',function(){var t=D.audio.currentTime;if(S.abLoop.a!==null&&t<=S.abLoop.a)t=S.abLoop.a+0.5;S.abLoop.b=t;updateABLoopUI()});
   $('np-ab-clear-btn').addEventListener('click',function(){S.abLoop={a:null,b:null};updateABLoopUI()});
   // AB marker drag
   ['a','b'].forEach(function(mark){
     var el=$('np-ab-marker-'+mark);
     el.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();
       var d=D.audio.duration||1,bar=$('np-progress-bar'),dragging=true;
-      function onMove(ev){if(!dragging||!d)return;var r=bar.getBoundingClientRect(),pct=Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width));S.abLoop[mark]=pct*d;updateABLoopUI()}
+      function onMove(ev){if(!dragging||!d)return;var r=bar.getBoundingClientRect(),pct=Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width));var val=pct*d;S.abLoop[mark]=val;if(mark==='a')D.audio.currentTime=val;if(mark==='a'&&S.abLoop.b!==null&&val>=S.abLoop.b)S.abLoop.b=Math.min(d,val+0.5);if(mark==='b'&&S.abLoop.a!==null&&val<=S.abLoop.a)S.abLoop.a=Math.max(0,val-0.5);updateABLoopUI()}
       function onUp(){dragging=false;document.removeEventListener('pointermove',onMove);document.removeEventListener('pointerup',onUp)}
       document.addEventListener('pointermove',onMove);document.addEventListener('pointerup',onUp);
     });
