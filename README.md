@@ -26,7 +26,7 @@ EchoWave 是一个可以直接在浏览器里搜索、播放和整理音乐的�
 |:---|:---|
 | 🔍 搜索 | 5 音源聚合、结果交替展示、按页无限滚动、最近 12 条搜索历史 |
 | 🎵 播放 | CDN 流媒体、歌词同步高亮、A/B 循环（标记可拖动）、列表/单曲/随机模式 |
-| 🏷️ 信息 | LOSSLESS / 320K 音质标签、VIP / SVIP 标签、封面与专辑信息 |
+| 🏷️ 信息 | 可判断时显示 LOSSLESS / 320K 音质标签、VIP / SVIP 标签、封面与专辑信息 |
 | 📋 管理 | 收藏、自定义歌单、JSON 导入导出（自动去重）、删除与批量管理 |
 | 📊 统计 | 播放次数、收听时长、单曲排行，按播放量或时长排序 |
 | 🎨 界面 | Light / Dark 主题、桌面到手机的响应式布局、封面懒加载 |
@@ -136,7 +136,7 @@ CI 会在 push / PR 时执行 Python 语法检查、单元测试和构建一致�
 |:---|:---|:---|:---|
 | `GET` | `/api/status` | — | 返回 `status`、`version`、`available`、`ready` |
 | `GET` | `/api/search` | `source`、`keyword`、`limit`、`page` | 返回 `total` 与当前页 `results` |
-| `GET` | `/api/url` | `source`、`id` | 返回单曲 `audio_url` |
+| `GET` | `/api/url` | `source`、`id`、`refresh` | 返回单曲 `audio_url`；`refresh=1` 强制跳过缓存 |
 
 - `source` 取值：`netease`、`qq`、`kuwo`、`kugou`、`migu`
 - `limit` 范围 1–50，默认 10；`page` 范围 1–100，默认 1

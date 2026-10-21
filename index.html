@@ -299,7 +299,7 @@ button{cursor:pointer;border:none;background:none}
     </div>
     <div class="nav-section">
       <div class="nav-label">Library</div>
-      <div class="nav-item" data-panel="playlists" role="button" tabindex="0"><span class="nav-icon">📋</span> Playlist <span class="nav-badge" id="sidebar-track-count">0</span></div>
+      <div class="nav-item" data-panel="playlists" role="button" tabindex="0"><span class="nav-icon">📋</span> Playlist <span class="nav-badge" id="sidebar-playlist-count">0</span></div>
       <div class="nav-item" data-panel="favorites" role="button" tabindex="0"><span class="nav-icon">♥</span> Favorites <span class="nav-badge" id="sidebar-fav-count">0</span></div>
       <div class="nav-item" data-view="stats" role="button" tabindex="0"><span class="nav-icon">📊</span> Statistics</div>
     </div>
@@ -396,7 +396,7 @@ button{cursor:pointer;border:none;background:none}
   </main>
 </div>
 <div id="playlist-overlay"></div>
-<div id="playlist-panel">
+<div id="playlist-panel" role="dialog" aria-modal="true" aria-labelledby="pl-panel-title" aria-hidden="true" inert>
   <div class="pl-panel-header"><h3 id="pl-panel-title">Playlist</h3><button id="pl-close-btn" aria-label="Close panel" title="Close" style="font-size:18px;color:var(--text-muted)">×</button></div>
   <div class="pl-panel-tabs"><button class="pl-tab active" data-pltab="results">Results</button><button class="pl-tab" data-pltab="favorites">Favorites</button><button class="pl-tab" data-pltab="playlists">Playlists</button></div>
   <div class="pl-panel-list" id="pl-list"></div>
@@ -412,9 +412,9 @@ button{cursor:pointer;border:none;background:none}
   </div>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
-<div class="modal-overlay" id="new-pl-modal">
+<div class="modal-overlay" id="new-pl-modal" role="dialog" aria-modal="true" aria-labelledby="new-pl-title" aria-hidden="true" inert>
   <div class="modal-box">
-    <h4>New Playlist</h4>
+    <h4 id="new-pl-title">New Playlist</h4>
     <input id="new-pl-name" type="text" placeholder="Playlist name..." aria-label="Playlist name"/>
     <div class="modal-actions">
       <button id="new-pl-cancel-btn" style="padding:6px 14px;border-radius:var(--radius-full);font-size:11px;color:var(--text-muted)">Cancel</button>
@@ -470,9 +470,19 @@ let D={};
 let toastTimer=null;
 let statSortBy='plays';
 let storageWarned=false;
+let panelOpener=null;
+let modalOpener=null;
 function fmtTime(sec){if(!isFinite(sec)||sec<0)sec=0;const m=Math.floor(sec/60),s=Math.floor(sec%60);return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')}
 function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.classList.remove('show')},2200)}
-function inferQuality(url){if(typeof url!=='string'||!url)return{tag:'hq',label:''};const ext=(url.split('?')[0].match(/\.([a-z0-9]+)$/i)||[])[1]||'';if(['flac','wav','ape','alac','aiff','wv'].includes(ext.toLowerCase()))return{tag:'lossless',label:'LOSSLESS'};return{tag:'hq',label:'320K'}}
+function inferQuality(url){
+  if(typeof url!=='string'||!url)return{tag:'hq',label:''};
+  const ext=(url.split('?')[0].match(/\.([a-z0-9]+)$/i)||[])[1]||'';
+  const lower=ext.toLowerCase();
+  if(['flac','wav','ape','alac','aiff','wv'].includes(lower))return{tag:'lossless',label:'LOSSLESS'};
+  if(['mp3','m4a','aac','ogg','opus','wma','mp4'].includes(lower))return{tag:'hq',label:'320K'};
+  // CDN/meting endpoints often have no extension; don't claim a bitrate.
+  return {tag:'hq',label:''};
+}
 function escHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function safeUrl(u){if(typeof u!=='string'||!u)return '';try{const p=new URL(u,location.href);return p.protocol==='http:'||p.protocol==='https:'?p.href:''}catch(e){return ''}}
 function cssUrl(u){const s=safeUrl(u);return s?'url("'+s.replace(/["\\\n\r]/g,'')+'")':''}
@@ -506,17 +516,27 @@ function setView(v){
 function openPlaylistPanel(tab){
   if(tab==='playlist')tab='playlists';
   if(tab)S.playlistTab=tab;
+  panelOpener=document.activeElement;
   document.querySelectorAll('.pl-tab').forEach(t=>t.classList.toggle('active',t.dataset.pltab===S.playlistTab));
   renderPlaylistPanel();
-  $('playlist-panel').classList.add('open');$('playlist-overlay').classList.add('open');
+  const panel=$('playlist-panel');
+  panel.removeAttribute('inert');
+  panel.setAttribute('aria-hidden','false');
+  panel.classList.add('open');
+  $('playlist-overlay').classList.add('open');
+  $('pl-close-btn').focus();
   if(S.playlistTab==='playlists'&&S.pendingAddUid&&D.plSelect&&D.plSelect.value)setTimeout(tryAddPendingTrack,300);
 }
 function closePlaylistPanel(){
-  $('playlist-panel').classList.remove('open');
+  const panel=$('playlist-panel');
+  panel.classList.remove('open');
+  panel.setAttribute('inert','');
+  panel.setAttribute('aria-hidden','true');
   $('playlist-overlay').classList.remove('open');
   document.querySelectorAll('.mobile-tab[data-mtab]').forEach(function(t){
     t.classList.toggle('active',t.dataset.mtab===S.view);
   });
+  if(panelOpener){try{panelOpener.focus()}catch(e){};panelOpener=null}
 }
 
 /* ── Source Filters ── */
@@ -598,7 +618,15 @@ function searchSource(source,kw,limit,page){
   if(S.proxyActive&&S.PROXY_SOURCES.includes(source))return searchViaProxy(kw,limit,page,source);
   return SEARCH_FNS[source](kw,limit,page);
 }
-async function fetchDetailsViaProxy(track){if(track.detailsLoaded&&track.audioUrl)return;try{const r=await fetchWithTimeout(`${S.proxyURL}/api/url?source=${encodeURIComponent(track.source)}&id=${encodeURIComponent(track.songid)}`);const j=await r.json();if(j.audio_url){track.audioUrl=j.audio_url;const q=inferQuality(j.audio_url);track.quality=q.tag;track.qualityLabel=q.label}track.detailsLoaded=true}catch(e){console.warn('proxy detail failed',track.source,e)}}
+async function fetchDetailsViaProxy(track,force){
+  if(!force&&track.detailsLoaded&&track.audioUrl)return;
+  try{
+    const r=await fetchWithTimeout(`${S.proxyURL}/api/url?source=${encodeURIComponent(track.source)}&id=${encodeURIComponent(track.songid)}${force?'&refresh=1':''}`);
+    const j=await r.json();
+    if(j.audio_url){track.audioUrl=j.audio_url;const q=inferQuality(j.audio_url);track.quality=q.tag;track.qualityLabel=q.label}
+    track.detailsLoaded=true;
+  }catch(e){console.warn('proxy detail failed',track.source,e)}
+}
 
 async function doSearch(reset){
   const kw=S.searchKeyword;
@@ -610,54 +638,72 @@ async function doSearch(reset){
   }else{
     active=S.activeSources.filter(function(s){return S.sources[s]});
   }
-  if(!active.length){toast(reset?'Select at least one source':'No more sources to load');return}
+  if(!active.length){
+    if(!reset)S.noMoreResults=true;
+    toast(reset?'Select at least one source':'No more sources to load');
+    return;
+  }
   const gen=++S.searchGen;
+  S.searchInProgress=true;
   if(reset){
     S.searchResults=[];S.trackMap.clear();S.noMoreResults=false;S.exhausted=new Set();
-    SOURCE_ORDER.forEach(function(s){S.perSourcePage[s]=1});
+    SOURCE_ORDER.forEach(function(s){S.perSourcePage[s]=0});
     S.activeSources=active.slice();
     if(S.playContext.type==='results')S.playContext.index=-1;
     // Replace stale, no-longer-clickable result cards while the new search runs.
     $('result-grid').innerHTML='<div class="state-empty"><div class="empty-icon">🔎</div><p>Searching...</p></div>';
     $('search-count').textContent='';
     $('load-more-hint').style.display='none';
-    updateSidebarCounts();
+    renderPlaylistPanel();
   }
-  S.searchInProgress=true;
   $('search-status').textContent=reset?'Searching...':'Loading more...';
   const tasks=active.map(function(s){
-    if(!reset&&S.exhausted.has(s))return Promise.resolve([]);
-    const page=reset?1:(S.perSourcePage[s]||1);
-    return searchSource(s,kw,S.perSourceLimit,page).catch(function(e){console.warn('search failed: '+s,e);return []});
+    if(!reset&&S.exhausted.has(s))return Promise.resolve({source:s,tracks:[],skipped:true});
+    const page=reset?1:(S.perSourcePage[s]||0)+1;
+    return searchSource(s,kw,S.perSourceLimit,page).then(function(tracks){
+      return {source:s,tracks:tracks||[],page:page};
+    }).catch(function(e){
+      console.warn('search failed: '+s,e);
+      return {source:s,tracks:null,page:page,failed:true};
+    });
   });
-  const batches=await Promise.all(tasks);
+  const results=await Promise.all(tasks);
   if(gen!==S.searchGen)return; // a newer search superseded this one
   let added=0;
-  batches.forEach(function(tracks,i){
-    const src=active[i];let n=0;
-    (tracks||[]).forEach(function(t){
+  const failed=[];
+  results.forEach(function(r){
+    if(r.skipped)return;
+    if(r.tracks===null){failed.push(SOURCE_LABELS[r.source]||r.source);return}
+    let n=0;
+    r.tracks.forEach(function(t){
       if(t&&t.uid&&!S.trackMap.has(t.uid)){S.trackMap.set(t.uid,t);S.searchResults.push(t);n++}
     });
     added+=n;
-    if(!reset&&n===0)S.exhausted.add(src);
+    // Only advance the page counter for a successful request. Failed pages are
+    // retried on the next load-more; empty pages mark the source exhausted.
+    S.perSourcePage[r.source]=r.page;
+    if(!reset&&n===0)S.exhausted.add(r.source);
   });
   S.searchInProgress=false;
-  if(added===0&&(!reset||S.searchResults.length===0))S.noMoreResults=true;
+  if(added===0&&!failed.length&&(!reset||S.searchResults.length===0))S.noMoreResults=true;
   if(S.playContext.type==='results'&&S.currentTrack){
     S.playContext.index=interleaveResults().findIndex(function(t){
       return t.uid===S.currentTrack.uid;
     });
   }
   const n=S.searchResults.length;
-  if(reset)$('search-status').textContent=n?'Found '+n+' tracks':'No results found';
-  else if(added)$('search-status').textContent='Loaded '+n+' tracks';
-  else $('search-status').textContent=n?'All results loaded · '+n+' tracks':'No results found';
+  let status;
+  if(reset)status=n?'Found '+n+' tracks':'No results found';
+  else if(added)status='Loaded '+n+' tracks';
+  else if(failed.length)status='Could not load more'+(n?' · '+n+' tracks':'');
+  else status=n?'All results loaded · '+n+' tracks':'No results found';
+  if(failed.length)status+=' · '+failed.length+' source'+(failed.length>1?'s':'')+' failed';
+  $('search-status').textContent=status;
   $('search-count').textContent=n+' tracks';
   renderResults();renderPlaylistPanel();updateLoadMoreHint();
 }
 function loadMore(){
-  if(S.searchInProgress||S.noMoreResults||!S.searchResults.length)return;
-  S.activeSources.forEach(function(s){S.perSourcePage[s]=(S.perSourcePage[s]||1)+1});
+  if(S.searchInProgress||S.noMoreResults)return;
   doSearch(false);
 }
 function updateLoadMoreHint(){
@@ -765,10 +811,20 @@ function renderResults(){
 }
 
 /* ── Detail Fetch ── */
+function safeLrcUrl(u){
+  const s=safeUrl(u);
+  if(!s)return '';
+  try{
+    // Only the meting endpoint is expected to serve LRC text.
+    return new URL(s).hostname==='api.qijieya.cn'?s:'';
+  }catch(e){return ''}
+}
 async function loadLyric(track){
   if(track.lrc||!track.lrcUrl)return;
+  const url=safeLrcUrl(track.lrcUrl);
+  if(!url)return;
   try{
-    const r=await fetchWithTimeout(track.lrcUrl,10000);
+    const r=await fetchWithTimeout(url,10000);
     const ct=(r.headers.get('content-type')||'').toLowerCase();
     if(ct.includes('json')){
       const j=await r.json();
@@ -779,21 +835,22 @@ async function loadLyric(track){
     if(typeof track.lrc==='string'&&track.lrc.length>200000)track.lrc=null;
   }catch(e){console.warn('lyric load failed',e)}
 }
-async function fetchNeteaseDetails(track){
+async function fetchNeteaseDetails(track,force){
   if(track.songid){
-    if(!track.audioUrl)track.audioUrl=`https://api.qijieya.cn/meting/?server=netease&type=url&id=${encodeURIComponent(track.songid)}`;
+    const bust=force?'&_='+Date.now():'';
+    if(!track.audioUrl||force)track.audioUrl=`https://api.qijieya.cn/meting/?server=netease&type=url&id=${encodeURIComponent(track.songid)}${bust}`;
     if(!track.lrcUrl)track.lrcUrl=`https://api.qijieya.cn/meting/?server=netease&type=lrc&id=${encodeURIComponent(track.songid)}`;
   }
   if(track.audioUrl){const q=inferQuality(track.audioUrl);track.quality=q.tag;track.qualityLabel=q.label}
   await loadLyric(track);
   track.detailsLoaded=true;
 }
-async function fetchQQDetails(track){
+async function fetchQQDetails(track,force){
   const msg=(track.qqSearchKey||track.keyword||(track.title+' '+track.artist)).trim();
   const mid=(track.qqId||track.songMid||track.songid||'').toString().trim();
   if(!mid){track.detailsLoaded=true;return}
   try{
-    const r=await fetchWithTimeout(`https://tang.api.s01s.cn/music_open_api.php?msg=${encodeURIComponent(msg)}&type=json&mid=${encodeURIComponent(mid)}`);
+    const r=await fetchWithTimeout(`https://tang.api.s01s.cn/music_open_api.php?msg=${encodeURIComponent(msg)}&type=json&mid=${encodeURIComponent(mid)}${force?'&_='+Date.now():''}`);
     const d=await r.json();
     track.title=d.song_title||track.title;track.artist=d.singer_name||track.artist;track.cover=d.album_pic||track.cover;
     track.audioUrl=d.song_play_url_sq||d.song_play_url_pq||d.song_play_url_hq||d.song_play_url_standard||null;track.lrc=d.song_lyric||d.lyric||track.lrc;
@@ -801,8 +858,8 @@ async function fetchQQDetails(track){
   }catch(e){console.warn('qq detail failed',e)}
   track.detailsLoaded=true;
 }
-async function fetchKuwoDetails(track){
-  const api=`https://kw-api.cenguigui.cn/?id=${encodeURIComponent(track.songid)}&type=song&level=zp&format=json`;
+async function fetchKuwoDetails(track,force){
+  const api=`https://kw-api.cenguigui.cn/?id=${encodeURIComponent(track.songid)}&type=song&level=zp&format=json${force?'&_='+Date.now():''}`;
   try{
     const r=await fetchWithTimeout(api);
     const j=await r.json();
@@ -823,10 +880,12 @@ async function fetchLyricOnlyDetails(track){
 }
 const DETAIL_FNS={netease:fetchNeteaseDetails,qq:fetchQQDetails,kuwo:fetchKuwoDetails,kugou:fetchLyricOnlyDetails,migu:fetchLyricOnlyDetails};
 async function ensureDetails(track){
-  if(track.detailsLoaded&&track.audioUrl)return;
-  if(S.proxyActive&&S.PROXY_SOURCES.includes(track.source)){try{await fetchDetailsViaProxy(track)}catch(e){};return}
+  const force=!!track.needsRefresh;
+  track.needsRefresh=false;
+  if(!force&&track.detailsLoaded&&track.audioUrl)return;
+  if(S.proxyActive&&S.PROXY_SOURCES.includes(track.source)){try{await fetchDetailsViaProxy(track,force)}catch(e){};return}
   const fn=DETAIL_FNS[track.source];
-  if(fn){try{await fn(track)}catch(e){console.warn('detail failed',track.source,e)}}
+  if(fn){try{await fn(track,force)}catch(e){console.warn('detail failed',track.source,e)}}
 }
 
 /* ── Playback ── */
@@ -848,6 +907,13 @@ function countPlay(track){
 async function playTrack(track,ctx){
   if(!track)return;
   const token=++S.playToken;
+  if(S.currentTrack&&S.currentTrack.uid!==track.uid){
+    // Flush the previous track before the UI/currentTrack changes, so its time
+    // is not credited to the next track (or lost on a no-audio switch).
+    accDuration();
+    saveStats();
+    S.listenStart=0;
+  }
   S.currentTrack=track;S.playContext=ctx||S.playContext;
   S.lyricLines=parseLRC(track.lrc);S.currentLyricIndex=-1;
   updateNowPlayingUI();updateSidebarMini();renderLyrics();syncPlayingUI();
@@ -874,7 +940,10 @@ async function playTrack(track,ctx){
   }catch(e){
     if(token!==S.playToken||(e&&e.name==='AbortError'))return;
     console.error('playTrack error:',e);
+    S.isPlaying=false;
+    updatePlayButton();
     toast('Playback error');
+    return; // keep the error message from the audio error handler
   }
   updateNowPlayingUI();updateSidebarMini();renderLyrics();syncPlayingUI();
 }
@@ -976,7 +1045,8 @@ function updateABLoopUI(){
 function adjustFavoritesContext(uid,removedIndex){
   if(S.playContext.type!=='favorites')return;
   if(S.currentTrack&&S.currentTrack.uid===uid){
-    S.playContext.index=S.favorites.length?Math.min(removedIndex,S.favorites.length-1):-1;
+    // Point one slot before the following track so Next lands on it.
+    S.playContext.index=S.favorites.length?removedIndex-1:-1;
   }else if(removedIndex<S.playContext.index){
     S.playContext.index--;
   }else if(S.playContext.index>=S.favorites.length){
@@ -1102,7 +1172,7 @@ function renderPlaylistPanel(){
   if(!tracks.length){
     var emptyMsg=tab==='playlists'
       ? (S.playlists.length?'This playlist is empty.':'Create a playlist to get started.')
-      : 'Nothing here yet.';
+      : (tab==='results'&&S.searchInProgress?'Searching...':'Nothing here yet.');
     listEl.innerHTML='<div class="state-empty" style="padding:30px 10px"><p>'+emptyMsg+'</p></div>';
   }else{
     const isPlaying=S.currentTrack;
@@ -1116,7 +1186,7 @@ function renderPlaylistPanel(){
   }
   updateSidebarCounts();
 }
-function updateSidebarCounts(){$('sidebar-track-count').textContent=S.searchResults.length;$('sidebar-fav-count').textContent=S.favorites.length}
+function updateSidebarCounts(){$('sidebar-playlist-count').textContent=S.playlists.length;$('sidebar-fav-count').textContent=S.favorites.length}
 function updateStatsView(){
   var totalPlays=0,totalSecs=0,tracks={};
   Object.keys(S.playCounts).forEach(function(uid){
@@ -1169,12 +1239,16 @@ function dedupeTracks(list){
   return out;
 }
 function serializeTrack(t){
-  // Lyrics and signed audio URLs are large and short-lived; refetch on load.
+  // Signed audio URLs are short-lived, so always refetch them. Lyrics are
+  // refetchable for direct sources; proxy sources only provide them in search
+  // responses, so keep those to avoid losing lyrics across reloads.
   const copy=Object.assign({},t);
-  delete copy.lrc;
+  if(!S.PROXY_SOURCES.includes(t.source))delete copy.lrc;
+  delete copy.lrcUrl;
   delete copy.audioUrl;
   delete copy.quality;
   delete copy.qualityLabel;
+  delete copy.needsRefresh;
   copy.detailsLoaded=false;
   return copy;
 }
@@ -1195,8 +1269,24 @@ function removeTrackFromPlaylist(uid){const plId=D.plSelect&&D.plSelect.value;if
 function deleteSelectedPlaylist(){const plId=D.plSelect&&D.plSelect.value;if(!plId)return;const idx=S.playlists.findIndex(function(p){return p.id===plId});if(idx<0)return;const pl=S.playlists[idx];if(!confirm('Delete "'+pl.name+'"?'))return;if(S.playContext.type==='playlist'&&S.playContext.playlistId===plId){S.playContext={type:'results',index:-1,playlistId:null};clearCurrentTrack()}S.playlists.splice(idx,1);saveLibrary();renderPlaylistOptions();renderPlaylistPanel();toast('Deleted: '+pl.name)}
 function addToPlaylistByUid(uid){const t=findTrack(uid);if(!t)return;if(!S.playlists.length){toast('Create a playlist first');openNewPlaylistModal();S.pendingAddUid=uid;return}const plId=D.plSelect&&D.plSelect.value;if(!plId){S.pendingAddUid=uid;openPlaylistPanel('playlists');toast('Select a playlist below');return}const pl=S.playlists.find(function(p){return p.id===plId});if(!pl)return;if(pl.tracks.some(function(x){return x.uid===t.uid})){toast('Already in playlist');return}pl.tracks.push(t);saveLibrary();renderPlaylistPanel();toast('Added to "'+pl.name+'"')}
 function tryAddPendingTrack(){if(!S.pendingAddUid)return;const uid=S.pendingAddUid;S.pendingAddUid=null;const plId=D.plSelect&&D.plSelect.value;if(!plId)return;const t=findTrack(uid);if(!t)return;const pl=S.playlists.find(function(p){return p.id===plId});if(!pl)return;if(pl.tracks.some(function(x){return x.uid===t.uid})){toast('Already in playlist');return}pl.tracks.push(t);saveLibrary();renderPlaylistPanel();toast('Added to "'+pl.name+'"')}
-function openNewPlaylistModal(){$('new-pl-name').value='';$('new-pl-modal').classList.add('open')}
-function closeNewPlaylistModal(keepPending){if(!keepPending)S.pendingAddUid=null;$('new-pl-modal').classList.remove('open')}
+function openNewPlaylistModal(){
+  modalOpener=document.activeElement;
+  $('new-pl-name').value='';
+  const modal=$('new-pl-modal');
+  modal.removeAttribute('inert');
+  modal.setAttribute('aria-hidden','false');
+  modal.classList.add('open');
+  $('new-pl-name').focus();
+  $('new-pl-name').select();
+}
+function closeNewPlaylistModal(keepPending){
+  if(!keepPending)S.pendingAddUid=null;
+  const modal=$('new-pl-modal');
+  modal.setAttribute('inert','');
+  modal.setAttribute('aria-hidden','true');
+  modal.classList.remove('open');
+  if(modalOpener){try{modalOpener.focus()}catch(e){};modalOpener=null}
+}
 function confirmNewPlaylist(){let name=$('new-pl-name').value.trim();if(!name)name='New Playlist';const id=newPlaylistId();S.playlists.push({id:id,name:name,tracks:[]});saveLibrary();renderPlaylistOptions();closeNewPlaylistModal(true);if(D.plSelect){D.plSelect.value=id}S.playlistTab='playlists';renderPlaylistPanel();toast('Playlist created');tryAddPendingTrack()}
 function renderPlaylistOptions(){
   const sel=D.plSelect;if(!sel)return;
@@ -1384,9 +1474,23 @@ function init(){
     else if(e&&e.code===2)msg='Network error';
     accDuration();
     saveStats();
-    S.isPlaying=false;
-    updatePlayButton();
+    // The CDN URL may have expired. Reload details (and bypass the proxy URL
+    // cache) the next time the user plays this track.
+    if(S.currentTrack){
+      S.currentTrack.detailsLoaded=false;
+      delete S.currentTrack.audioUrl;
+      S.currentTrack.needsRefresh=true;
+    }
+    stopAudio();
     $('np-artist').textContent=msg;
+  });
+  window.addEventListener('pagehide',function(){accDuration();saveStats()});
+  document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='hidden'){
+      accDuration();saveStats();S.listenStart=0;
+    }else if(S.isPlaying){
+      S.listenStart=Date.now()/1000;
+    }
   });
 
   $('np-volume').addEventListener('input',function(){D.audio.volume=Number(this.value)});
@@ -1558,7 +1662,7 @@ function init(){
   });
   $('np-prev-btn').addEventListener('click',playPrev);
   $('np-next-btn').addEventListener('click',playNext);
-  $('np-mode-btn').addEventListener('click',function(){if(S.abLoop.a!==null||S.abLoop.b!==null){toast('AB loop is active — clear it to change play mode');return}setPlayMode()});
+  $('np-mode-btn').addEventListener('click',function(){if(S.abLoop.a!==null){toast('AB loop is active — clear it to change play mode');return}setPlayMode()});
   $('np-fav-btn').addEventListener('click',toggleFavoriteCurrent);
   $('np-download-btn').addEventListener('click',downloadCurrent);
   $('np-lyricfx-btn').addEventListener('click',switchLyricStyle);
@@ -1652,7 +1756,14 @@ function init(){
 
   document.addEventListener('keydown',function(e){
     var target=e.target;
-    if(e.key==='Escape'){closeNewPlaylistModal();closePlaylistPanel();$('search-history').classList.remove('open');return}
+    if(e.key==='Escape'){
+      if($('new-pl-modal').classList.contains('open')){closeNewPlaylistModal();return}
+      closePlaylistPanel();
+      $('search-history').classList.remove('open');
+      return;
+    }
+    if($('new-pl-modal').classList.contains('open'))return;
+    if($('playlist-panel').classList.contains('open'))return;
     var inField=target&&target.closest&&target.closest('input,textarea,select,[contenteditable="true"]');
     if(inField)return;
     if(e.ctrlKey||e.metaKey||e.altKey)return;

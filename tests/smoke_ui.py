@@ -334,8 +334,12 @@ def main():
             stored = json.loads(page.evaluate("localStorage.getItem('echowave-library-v2')"))
             stored_track = stored['playlists'][0]['tracks'][0]
             assert 'lrc' not in stored_track
+            assert 'lrcUrl' not in stored_track
             assert 'audioUrl' not in stored_track
+            assert 'quality' not in stored_track
+            assert 'qualityLabel' not in stored_track
             assert stored_track['detailsLoaded'] is False
+            assert page.locator('#sidebar-playlist-count').inner_text() == '1'
 
             # Sidebar "Playlist" must open the real playlists tab, with remove buttons.
             page.click('.nav-item[data-panel="playlists"]')
@@ -458,6 +462,7 @@ def main():
             page.wait_for_selector('#playlist-panel.open')
             assert 'Road Trip (0)' in page.locator('#pl-playlist-select').inner_text()
             assert page.locator('#pl-list .state-empty').count() == 1
+            assert page.locator('#sidebar-playlist-count').inner_text() == '1'
             page.click('#pl-close-btn')
 
             # ── No JS errors (the forced 503 proxy probes are expected) ──

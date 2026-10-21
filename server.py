@@ -94,6 +94,10 @@ class TTLCache:
                 del self._data[next(iter(self._data))]
             self._data[key] = (now + self._ttl, value)
 
+    def discard(self, key):
+        with self._lock:
+            self._data.pop(key, None)
+
     def clear(self):
         with self._lock:
             self._data.clear()
@@ -168,38 +172,40 @@ def search_songs(source, keyword):
     return songs
 
 
-def find_song_url(source, song_id):
-    """Look up a playable URL for an already-known song identifier."""
+def find_song_url(source, song_id, refresh=False):
+    """Look up a playable URL for an already-known song identifier.
+
+    ``refresh`` bypasses the cache, which is needed after a CDN URL expires.
+    Negative results are not cached so a later retry can succeed.
+    """
     key = (source, song_id)
-    cached = _url_cache.get(key)
-    if cached is not None:
-        return cached['url']
+    if not refresh:
+        cached = _url_cache.get(key)
+        if cached is not None:
+            return cached['url']
 
     client_name = SOURCE_MAP[source]
     client = get_music_client().music_clients[client_name]
     with _source_locks[source]:
-        cached = _url_cache.get(key)
-        if cached is not None:
-            return cached['url']
+        if not refresh:
+            cached = _url_cache.get(key)
+            if cached is not None:
+                return cached['url']
+        else:
+            _url_cache.discard(key)
         results = client.search(keyword=song_id, num_threadings=3) or []
 
+        # Require an exact identifier match. A substring match can return a
+        # different song (e.g. "23" matching "123") and poison the URL cache.
         match = next(
             (song for song in results if str(song.identifier or '') == song_id), None
         )
-        if match is None:
-            match = next(
-                (song for song in results
-                 if song.identifier and song_id in str(song.identifier)),
-                None,
-            )
-        # Only use a fallback when the upstream search returned a single song;
-        # otherwise we could hand back the URL of an unrelated track.
+        # Only use a fallback when the upstream search returned a single song.
         if match is None and len(results) == 1:
             match = results[0]
         url = str(match.download_url) if match and match.download_url else None
-
-        # Cache misses too: a song with no playable URL should not be re-searched.
-        _url_cache.put(key, {'url': url})
+        if url:
+            _url_cache.put(key, {'url': url})
     return url
 
 
@@ -225,12 +231,13 @@ def resolve_static_path(url_path):
     relative = url_path.lstrip('/')
     if not relative:
         return None
-    target = (ROOT / relative).resolve()
     try:
+        target = (ROOT / relative).resolve()
         target.relative_to(ROOT)
-    except ValueError:
-        return None
-    if target.suffix.lower() not in STATIC_SUFFIXES or not target.is_file():
+        if target.suffix.lower() not in STATIC_SUFFIXES or not target.is_file():
+            return None
+    except (OSError, ValueError):
+        # Crafted Windows paths (e.g. NTFS streams) can raise from resolve/is_file.
         return None
     return target
 
@@ -384,8 +391,9 @@ class Handler(BaseHTTPRequestHandler):
             if not song_id or len(song_id) > MAX_QUERY_LEN:
                 self._send_json({'error': 'Missing or invalid id'}, 400)
                 return
+            refresh = first_param(params, 'refresh', '').lower() in ('1', 'true', 'yes')
             try:
-                url = find_song_url(source, song_id)
+                url = find_song_url(source, song_id, refresh=refresh)
                 self._send_json({'source': source, 'id': song_id, 'audio_url': url})
             except Exception:
                 traceback.print_exc()

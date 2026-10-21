@@ -91,6 +91,10 @@ class StaticPathTests(unittest.TestCase):
     def test_missing_file(self):
         self.assertIsNone(server.resolve_static_path('/does-not-exist.json'))
 
+    def test_crafted_windows_path_is_not_found(self):
+        for path in ('/foo.json::$INDEX_ALLOCATION', '/con.json', '/foo<bar>.json'):
+            self.assertIsNone(server.resolve_static_path(path))
+
     def test_path_traversal_is_blocked(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -208,6 +212,12 @@ class _SingleResultClient(_FakeClient):
         return [_FakeSong(99)]
 
 
+class _AmbiguousClient(_FakeClient):
+    def search(self, keyword=None, num_threadings=5):
+        self.calls.append(keyword)
+        return [_FakeSong(123), _FakeSong(456)]
+
+
 class _FakeMusicClient:
     def __init__(self):
         self.music_clients = {name: _FakeClient() for name in server.SOURCE_MAP.values()}
@@ -299,10 +309,28 @@ class HttpApiTests(unittest.TestCase):
         _, _, body = self.get_json('/api/url?source=netease&id=missing-id')
         self.assertIsNone(body['audio_url'])
 
+    def test_song_url_requires_exact_identifier(self):
+        server._mc.music_clients['NeteaseMusicClient'] = _AmbiguousClient()
+        _, _, body = self.get_json('/api/url?source=netease&id=23')
+        self.assertIsNone(body['audio_url'])
+
     def test_song_url_single_result_fallback(self):
         server._mc.music_clients['NeteaseMusicClient'] = _SingleResultClient()
         _, _, body = self.get_json('/api/url?source=netease&id=missing-id')
         self.assertEqual(body['audio_url'], 'https://example.com/99.mp3')
+
+    def test_song_url_refresh_bypasses_cache_and_misses_are_not_cached(self):
+        client = server._mc.music_clients['NeteaseMusicClient']
+        self.get_json('/api/url?source=netease&id=7')
+        self.assertEqual(len(client.calls), 1)
+        self.get_json('/api/url?source=netease&id=7')
+        self.assertEqual(len(client.calls), 1)  # cached
+        self.get_json('/api/url?source=netease&id=7&refresh=1')
+        self.assertEqual(len(client.calls), 2)  # forced refresh
+
+        self.get_json('/api/url?source=netease&id=no-such-id')
+        self.get_json('/api/url?source=netease&id=no-such-id')
+        self.assertEqual(len(client.calls), 4)  # misses are retried
 
     def test_static_files_and_rejections(self):
         with self.get('/') as response:
