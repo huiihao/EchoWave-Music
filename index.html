@@ -114,18 +114,18 @@ button{cursor:pointer;border:none;background:none}
 .result-card .card-cover img{width:100%;height:100%;object-fit:cover;display:block}
 .result-card .card-info{min-width:0;flex:1}
 .result-card .card-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.result-card .card-artist{font-size:11px;color:var(--text-secondary);margin-top:2px}
+.result-card .card-artist{font-size:11px;color:var(--text-secondary);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .result-card .card-meta{display:flex;align-items:center;gap:6px;margin-top:5px}
-.card-source-badge{font-size:9px;padding:2px 7px;border-radius:var(--radius-full);font-weight:600;text-transform:uppercase;letter-spacing:0.05em}
+.card-source-badge{font-size:9px;padding:2px 7px;border-radius:var(--radius-full);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;flex-shrink:0}
 .card-source-badge.netease{background:rgba(233,107,126,0.15);color:#e96b7e}
 .card-source-badge.qq{background:rgba(77,182,225,0.15);color:#4db6e1}
 .card-source-badge.kuwo{background:rgba(180,120,220,0.15);color:#b478dc}
 .card-source-badge.kugou{background:rgba(77,170,240,0.15);color:#4daaf0}
 .card-source-badge.migu{background:rgba(230,168,64,0.15);color:#e6a840}
-.card-quality-badge{font-size:9px;padding:2px 7px;border-radius:var(--radius-full);font-weight:600;letter-spacing:0.05em}
+.card-quality-badge{font-size:9px;padding:2px 7px;border-radius:var(--radius-full);font-weight:600;letter-spacing:0.05em;white-space:nowrap;flex-shrink:0}
 .card-quality-badge.lossless{background:rgba(77,217,178,0.15);color:var(--mint)}
 .card-quality-badge.hq{background:rgba(255,255,255,0.06);color:var(--text-muted)}
-.card-vip-badge{font-size:9px;padding:2px 7px;border-radius:var(--radius-full);font-weight:700;letter-spacing:0.05em;background:linear-gradient(135deg,rgba(230,168,64,0.2),rgba(245,158,11,0.12));color:#f5a623;border:1px solid rgba(245,166,35,0.25);text-shadow:0 0 6px rgba(245,166,35,0.3)}
+.card-vip-badge{font-size:9px;padding:2px 7px;border-radius:var(--radius-full);font-weight:700;letter-spacing:0.05em;background:linear-gradient(135deg,rgba(230,168,64,0.2),rgba(245,158,11,0.12));color:#f5a623;border:1px solid rgba(245,166,35,0.25);text-shadow:0 0 6px rgba(245,166,35,0.3);white-space:nowrap;flex-shrink:0}
 .result-card .card-actions{display:flex;gap:4px;flex-shrink:0}
 .result-card .card-btn{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text-muted);transition:all var(--transition)}
 .result-card .card-btn:hover{background:rgba(255,255,255,0.06);color:var(--text-primary)}
@@ -440,6 +440,7 @@ const S={
 };
 const SOURCE_ORDER=['netease','qq','kuwo','kugou','migu'];
 const SOURCE_LABELS={netease:'NetEase',qq:'QQ Music',kuwo:'Kuwo',kugou:'Kugou',migu:'Migu'};
+const SOURCE_SHORT={netease:'NetEase',qq:'QQ',kuwo:'Kuwo',kugou:'Kugou',migu:'Migu'};
 const SOURCE_DOTS={netease:'🔴',qq:'🔵',kuwo:'🟣',kugou:'💠',migu:'🟠'};
 const LS_KEY='echowave-library-v2';
 const HISTORY_KEY='echowave-search-history';
@@ -651,7 +652,7 @@ function cardMetaHtml(t){
   const qualBadge=t.qualityLabel?`<span class="card-quality-badge ${t.quality||'hq'}">${escHtml(t.qualityLabel)}</span>`:'';
   const vip=t.qualityLabel?'':vipLabel(t);
   const vipBadge=vip?`<span class="card-vip-badge">${escHtml(vip)}</span>`:'';
-  return `<span class="card-source-badge ${t.source}">${SOURCE_LABELS[t.source]||t.source}</span>${noAudio?'<span class="card-quality-badge hq" style="background:rgba(255,255,255,0.04);color:var(--text-muted)">preview</span>':''}${qualBadge}${vipBadge}`;
+  return `<span class="card-source-badge ${t.source}">${SOURCE_SHORT[t.source]||t.source}</span>${noAudio?'<span class="card-quality-badge hq" style="background:rgba(255,255,255,0.04);color:var(--text-muted)">preview</span>':''}${qualBadge}${vipBadge}`;
 }
 function updateCardMeta(track){
   if(!track)return;
