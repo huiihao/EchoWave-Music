@@ -298,10 +298,10 @@ def main():
             page.fill('#search-input', 'other')
             page.click('#search-btn')
             page.wait_for_function(
-                "document.querySelector('#result-grid .card-title').textContent.includes('other')"
-                " && document.querySelector('#search-count').textContent === '30 tracks'",
+                "document.querySelector('#search-count').textContent === '30 tracks'",
                 timeout=10000,
             )
+            assert 'other' in page.locator('#result-grid .card-title').first.inner_text()
             page.click('.nav-item[data-panel="favorites"]')
             page.wait_for_selector('#playlist-panel.open')
             assert page.locator('#pl-list .pl-item').count() == 1
@@ -330,6 +330,23 @@ def main():
                 timeout=5000,
             )
 
+            # Stored tracks omit heavy lyrics and short-lived audio URLs.
+            stored = json.loads(page.evaluate("localStorage.getItem('echowave-library-v2')"))
+            stored_track = stored['playlists'][0]['tracks'][0]
+            assert 'lrc' not in stored_track
+            assert 'audioUrl' not in stored_track
+            assert stored_track['detailsLoaded'] is False
+
+            # Sidebar "Playlist" must open the real playlists tab, with remove buttons.
+            page.click('.nav-item[data-panel="playlists"]')
+            page.wait_for_selector('#playlist-panel.open')
+            assert page.locator('.pl-tab[data-pltab="playlists"]').evaluate(
+                "el => el.classList.contains('active')"
+            )
+            assert page.locator('#pl-list .pl-item').count() == 1
+            assert page.locator('#pl-list .pl-item button[data-action="remove"]').count() == 1
+            page.click('#pl-close-btn')
+
             # ── Play, lyrics, A/B loop ──
             page.locator('#result-grid .result-card').first.click()
             page.wait_for_function(
@@ -356,15 +373,61 @@ def main():
             page.click('#np-lyricfx-btn')
             assert page.locator('#np-lyrics.alt').count() == 1
 
+            page.wait_for_function(
+                "document.querySelector('#audio').currentTime > 0.5",
+                timeout=3000,
+            )
             page.click('#np-play-btn')
             page.wait_for_function("document.querySelector('#audio').paused === true", timeout=3000)
 
             page.click('.nav-item[data-view="stats"]')
             page.wait_for_function(
-                "Number(document.querySelector('#stat-total-plays').textContent) >= 1",
+                "document.querySelector('#stat-total-plays').textContent === '1'",
                 timeout=5000,
             )
             assert page.locator('#stat-list .stat-row').count() >= 1
+
+            # Resuming a paused track must not add another play.
+            assert page.evaluate("document.querySelector('#audio').currentTime") > 0.5
+            page.click('.nav-item[data-view="search"]')
+            page.locator('#result-grid .result-card').first.click()
+            page.wait_for_function(
+                "document.querySelector('#audio').paused === false",
+                timeout=5000,
+            )
+            page.wait_for_timeout(300)
+            page.click('#np-play-btn')
+            page.wait_for_function(
+                "document.querySelector('#audio').paused === true",
+                timeout=3000,
+            )
+            page.click('.nav-item[data-view="stats"]')
+            assert page.locator('#stat-total-plays').inner_text() == '1'
+
+            # ── Removing the playing track from its playlist clears playback ──
+            page.click('.nav-item[data-panel="playlists"]')
+            page.wait_for_selector('#playlist-panel.open')
+            page.locator('#pl-list .pl-item').first.click()
+            page.wait_for_function(
+                "document.querySelector('#audio').paused === false",
+                timeout=5000,
+            )
+            assert page.locator('#result-grid .result-card.playing').count() == 1
+            page.locator('#pl-list .pl-item button[data-action="remove"]').first.click()
+            page.wait_for_function(
+                "document.querySelector('#np-title').textContent === 'No Track'"
+                " && document.querySelector('#sidebar-mini-title').textContent === 'Not playing'"
+                " && document.querySelectorAll('#result-grid .result-card.playing').length === 0",
+                timeout=5000,
+            )
+            assert 'Lyrics will appear here' in page.locator('#np-lyrics').text_content()
+            assert page.locator('#pl-list .state-empty').count() == 1
+            assert page.locator('#np-time-current').inner_text() == '00:00'
+            assert page.locator('#np-time-duration').inner_text() == '00:00'
+            assert page.evaluate(
+                "document.querySelector('#audio').getAttribute('src')"
+            ) is None
+            page.click('#pl-close-btn')
 
             # ── Search history delete does not trigger a search ──
             page.click('.nav-item[data-view="search"]')
@@ -389,6 +452,13 @@ def main():
             page.wait_for_selector('.source-chip', timeout=10000)
             assert page.evaluate("document.documentElement.dataset.theme") == 'light'
             assert page.evaluate("localStorage.getItem('echowave-theme')") == 'light'
+
+            # Playlists survive a reload even though stored tracks are slimmed.
+            page.click('.nav-item[data-panel="playlists"]')
+            page.wait_for_selector('#playlist-panel.open')
+            assert 'Road Trip (0)' in page.locator('#pl-playlist-select').inner_text()
+            assert page.locator('#pl-list .state-empty').count() == 1
+            page.click('#pl-close-btn')
 
             # ── No JS errors (the forced 503 proxy probes are expected) ──
             unexpected = [

@@ -202,6 +202,12 @@ class _FakeClient:
         return [_FakeSong(i) for i in range(1, 26)]
 
 
+class _SingleResultClient(_FakeClient):
+    def search(self, keyword=None, num_threadings=5):
+        self.calls.append(keyword)
+        return [_FakeSong(99)]
+
+
 class _FakeMusicClient:
     def __init__(self):
         self.music_clients = {name: _FakeClient() for name in server.SOURCE_MAP.values()}
@@ -275,6 +281,10 @@ class HttpApiTests(unittest.TestCase):
             self.get('/api/search?source=netease&keyword=')
         self.assertEqual(no_keyword.exception.code, 400)
 
+        with self.assertRaises(HTTPError) as long_keyword:
+            self.get('/api/search?source=netease&keyword=' + 'x' * (server.MAX_QUERY_LEN + 1))
+        self.assertEqual(long_keyword.exception.code, 400)
+
         _, _, body = self.get_json(
             '/api/search?source=netease&keyword=x&limit=999&page=0'
         )
@@ -285,14 +295,24 @@ class HttpApiTests(unittest.TestCase):
         _, _, body = self.get_json('/api/url?source=netease&id=7')
         self.assertEqual(body['audio_url'], 'https://example.com/7.mp3')
 
+    def test_song_url_does_not_guess_among_many_results(self):
+        _, _, body = self.get_json('/api/url?source=netease&id=missing-id')
+        self.assertIsNone(body['audio_url'])
+
+    def test_song_url_single_result_fallback(self):
+        server._mc.music_clients['NeteaseMusicClient'] = _SingleResultClient()
+        _, _, body = self.get_json('/api/url?source=netease&id=missing-id')
+        self.assertEqual(body['audio_url'], 'https://example.com/99.mp3')
+
     def test_static_files_and_rejections(self):
         with self.get('/') as response:
             self.assertEqual(response.status, 200)
             self.assertIn(b'<!DOCTYPE html>', response.read())
 
-        with self.get('/docs/index.html') as response:
-            self.assertEqual(response.status, 200)
-            self.assertIn(b'EchoWave Lite', response.read())
+        for path in ('/docs', '/docs/index.html', '/lite'):
+            with self.get(path) as response:
+                self.assertEqual(response.status, 200)
+                self.assertIn(b'EchoWave Lite', response.read())
 
         for path in ('/server.py', '/README.md', '/does-not-exist.json'):
             with self.assertRaises(HTTPError) as missing:

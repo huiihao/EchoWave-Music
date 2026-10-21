@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parent
 VERSION = '1.2'
 DEFAULT_PORT = 5000
 MAX_LIMIT = 50
+MAX_QUERY_LEN = 200
 
 SOURCE_MAP = {
     'netease': 'NeteaseMusicClient',
@@ -191,7 +192,9 @@ def find_song_url(source, song_id):
                  if song.identifier and song_id in str(song.identifier)),
                 None,
             )
-        if match is None and results:
+        # Only use a fallback when the upstream search returned a single song;
+        # otherwise we could hand back the URL of an unrelated track.
+        if match is None and len(results) == 1:
             match = results[0]
         url = str(match.download_url) if match and match.download_url else None
 
@@ -324,7 +327,7 @@ class Handler(BaseHTTPRequestHandler):
         if path in ('/', '/index.html'):
             self._send_file(ROOT / 'index.html')
             return
-        if path in ('/lite', '/lite.html'):
+        if path in ('/lite', '/lite.html', '/docs', '/docs/index.html'):
             self._send_file(ROOT / 'docs' / 'index.html')
             return
         if '.' in path.rsplit('/', 1)[-1]:
@@ -354,8 +357,8 @@ class Handler(BaseHTTPRequestHandler):
             if source not in SOURCE_MAP:
                 self._send_json({'error': 'Invalid source: %s' % source}, 400)
                 return
-            if not keyword:
-                self._send_json({'error': 'Missing keyword'}, 400)
+            if not keyword or len(keyword) > MAX_QUERY_LEN:
+                self._send_json({'error': 'Missing or invalid keyword'}, 400)
                 return
 
             limit = parse_int_param(params, 'limit', 10, 1, MAX_LIMIT)
@@ -378,8 +381,8 @@ class Handler(BaseHTTPRequestHandler):
             if source not in SOURCE_MAP:
                 self._send_json({'error': 'Invalid source: %s' % source}, 400)
                 return
-            if not song_id:
-                self._send_json({'error': 'Missing id'}, 400)
+            if not song_id or len(song_id) > MAX_QUERY_LEN:
+                self._send_json({'error': 'Missing or invalid id'}, 400)
                 return
             try:
                 url = find_song_url(source, song_id)
@@ -418,6 +421,9 @@ def parse_args(argv=None):
 
 def main(argv=None):
     args = parse_args(argv)
+    if not 1 <= args.port <= 65535:
+        print(f'  Invalid port: {args.port} (expected 1-65535)')
+        return 1
     try:
         server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
     except OSError as exc:
